@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+data/
+node_modules/
+dist/
+*.log
+lavalink/*.jar
+lavalink/plugins*/
+/yt-cipher/

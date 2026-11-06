@@ -1,0 +1,31 @@
+{
+  "name": "spike-discord-bot",
+  "version": "1.5.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.17.0"
+  },
+  "scripts": {
+    "dev": "node --env-file=.env --import tsx src/index.ts",
+    "build": "tsc",
+    "start": "node --env-file=.env dist/src/index.js",
+    "register": "node --env-file=.env --import tsx src/register.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "check": "tsc --noEmit",
+    "setup:lavalink": "node scripts/setup-lavalink.mjs",
+    "lavalink": "node --env-file=.env scripts/start-lavalink.mjs",
+    "yt-cipher": "node --env-file=.env scripts/start-yt-cipher.mjs",
+    "prestart": "npm run build",
+    "spotify:login": "npm run build && node --env-file=.env dist/src/spotify-login.js"
+  },
+  "dependencies": {
+    "discord.js": "14.22.1",
+    "shoukaku": "4.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}
