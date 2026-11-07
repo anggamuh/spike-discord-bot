@@ -66,7 +66,7 @@ export class SpotifyUser {
     const meta=await this.get(`/playlists/${id}?fields=public&market=ID`);
     if(meta.public!==true)throw new MusicError('Bot hanya mengimpor playlist publik, agar playlist privat akun pemilik bot tidak dibagikan ke server.');
    }
-   // Read at most 100 entries; retain at most 100 playable metadata rows.
+   // Read at most 100 entries to keep imported playlists within the player queue cap.
    for(let offset=0;offset<100&&rows.length<100;offset+=50){
     const page=await this.get(`/${kind==='playlist'?'playlists':'albums'}/${id}/${kind==='playlist'?'items':'tracks'}?limit=50&offset=${offset}&market=ID`);
     if(!Array.isArray(page.items))throw new MusicError('Respons daftar lagu Spotify tidak lengkap.');

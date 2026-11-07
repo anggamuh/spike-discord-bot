@@ -12,8 +12,9 @@ const music=process.env.MUSIC_ENABLED==='false'?undefined:new Music(client);
 const cooldown=new Map<string,number>(),busy=new Set<string>();
 const clean=(s:string)=>escapeMarkdown(s).slice(0,150);
 const base=()=>new EmbedBuilder().setColor(0xff4655).setFooter({text:dataMode==='demo'?'SPIKE • DATA DEMO, bukan statistik asli':'SPIKE • HenrikDev (tidak resmi) • cache maks. 60 detik'}).setTimestamp();
-client.once(Events.ClientReady,()=>console.log(`ManukAPP v1.5.0 online • mode ${dataMode}. Gunakan /help.`));
+client.once(Events.ClientReady,()=>console.log(`ManukAPP v1.6.1 online • mode ${dataMode}. Gunakan /help.`));
 client.on(Events.InteractionCreate,async i=>{
+ if(i.isAutocomplete()){if(music&&musicNames.has(i.commandName))await music.autocomplete(i);else await i.respond([]).catch(()=>{});return;}
  if(!i.isChatInputCommand())return;
  const uid=i.user.id;
  if(busy.has(uid)||(cooldown.get(uid)??0)>Date.now()){await i.reply({content:'Tunggu beberapa detik sebelum command berikutnya.',flags:MessageFlags.Ephemeral}).catch(()=>{});return;}

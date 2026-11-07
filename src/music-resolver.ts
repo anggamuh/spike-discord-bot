@@ -128,11 +128,18 @@ export async function fallbackTrack(resolve:Resolve,track:Track){
 
 // Spotify provides metadata only. Resolve the audio just before this item's turn.
 export async function prepareTrack(resolve:Resolve,track:Track):Promise<Track>{
- if(track.info.sourceName!=='spotify')return track;
+ if(!['spotify','saved'].includes(track.info.sourceName))return track;
  const query=`${track.info.title} ${track.info.author}`.slice(0,450);
  console.log('[MUSIC SPOTIFY RESOLVE] Mencari audio untuk track antrean.');
  const rows=await resolveRequest(resolve,`ytmsearch:${query}`);
  const playable=rows[0];
  if(!playable||playable.info.sourceName==='spotify')throw new MusicError('Sumber audio untuk track Spotify tidak ditemukan.');
- return playable;
+ playable.pluginInfo={...(playable.pluginInfo as Record<string,unknown>),requester:(track.pluginInfo as Record<string,unknown>|undefined)?.requester};return playable;
+}
+
+export async function recommendTrack(resolve:Resolve,previous:Track,recent:string[]){
+ const key=(t:string)=>words(cleanTitle(t)).join(' '),used=new Set(recent.map(key));used.add(key(previous.info.title));
+ const artist=previous.info.author.replace(/\s*-\s*Topic$/i,'');
+ for(const prefix of ['ytmsearch:','scsearch:']){try{const rows=tracksFrom(await resolve(prefix+artist.slice(0,200)),'autoplay',true);const candidate=rows.find(t=>!t.info.isStream&&t.info.length>30000&&!used.has(key(t.info.title)));if(candidate)return candidate;}catch{}}
+ return undefined;
 }

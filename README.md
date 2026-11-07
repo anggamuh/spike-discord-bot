@@ -19,7 +19,7 @@ Untuk perbaikan pesan error musik, baca **DIAGNOSIS_MUSIK.md**. Instalasi awal: 
 - `/play query:<judul atau URL> source:<youtube/soundcloud/bandcamp>`: cari judul, masukkan lagu atau playlist. Pencarian otomatis melewati YouTube Music/YouTube, SoundCloud, lalu Bandcamp jika sumber sebelumnya gagal.
 - `/skip`, `/pause`, `/resume`, `/stop`.
 - `/queue page:1`, `/nowplaying`, `/volume level:50`.
-- Antrean terpisah per server, maksimal 50 lagu termasuk lagu aktif; playlist besar dipotong sesuai kapasitas. /queue 10 lagu per halaman.
+- Antrean terpisah per server, maksimal 100 lagu termasuk lagu aktif; playlist besar dipotong sesuai kapasitas. /queue 10 lagu per halaman.
 - Kontrol hanya dari voice channel yang sama; Stage belum didukung.
 - Keluar otomatis setelah antrean kosong 2 menit, atau channel tanpa pendengar manusia 60 detik.
 - Antrean hanya di memori; restart/koneksi node terputus menghapus antrean. Ketika bot dipindah paksa, sesi dibersihkan.
@@ -36,7 +36,7 @@ Tidak ada API key musik berbayar. Node/Lavalink berjalan pada PC milikmu; kedua 
 
 ## Verifikasi
 
-Build TypeScript lolos pada Node 26.13.0. Seluruh 55 unit test lolos dengan shim sementara untuk `os.userInfo`; runner `tsx` di sandbox mengembalikan `ENOMEM` sebelum tes dimulai tanpa shim. Tes mencakup playlist Spotify, fallback SoundCloud, antrean, kandidat YouTube, kegagalan playback, dan redaksi diagnostik.
+Build TypeScript lolos pada Node 26.13.0. `node --test` pada hasil build menjalankan 60 tes yang lolos, dan tes redaksi Lavalink lolos terpisah dari sumber (total 61). `npm test` melalui `tsx` pada lingkungan Codex dapat berhenti sebelum tes mulai karena `uv_os_get_passwd ... ENOMEM`; gunakan build lalu `node --test dist/test/<nama-test>.js` untuk verifikasi di lingkungan ini.
 
 Unduhan JAR resmi berhasil diuji. Uji startup Java terhenti ketika lingkungan pengujian tidak dapat me-resolve host `maven.lavalink.dev` untuk mengunduh plugin; startup penuh belum terverifikasi.
 
@@ -63,3 +63,8 @@ Config default untuk **bot dan Lavalink pada PC yang sama**. Jangan membuka port
 - https://lavalink.dev/configuration/
 - https://github.com/lavalink-devs/youtube-source/releases/tag/1.18.2
 - https://github.com/lavalink-devs/youtube-source
+# Manuk Music V2 progress
+
+The music subsystem now creates SQLite tables automatically in `DATABASE_PATH` for guild playback snapshots and up to 100 history entries per guild. No separate migration command is required. `/resume` restores a saved snapshot only after a member invokes it from a voice channel; unavailable old tracks are skipped. `VOTE_SKIP_THRESHOLD` defaults to `0.5` (50% of current human listeners). Existing deployments can keep their current `.env`; this setting is optional.
+
+Fitur musik V2 yang tersedia: snapshot SQLite, /resume, loop song/queue, autoplay, pengelolaan antrean, vote skip, riwayat, favorit pribadi, playlist server, role DJ, dan panel publik /panel. Lihat UPDATE_V2.md untuk pemasangan dan perilaku fitur.

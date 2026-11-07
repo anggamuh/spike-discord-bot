@@ -45,6 +45,7 @@ export function playerView(session:MusicSession,volume:number,disabled=false){
   .addTextDisplayComponents(new TextDisplayBuilder().setContent(
    `**ANTREAN**  ${session.queue.length} ${session.queue.length===1?'track':'tracks'}    **VOLUME**  ${Math.round(volume)}%`+
    (next?`\n**BERIKUTNYA**  ${safe(next.info.title,90)} | ${safe(next.info.author,60)}`:'\n*Tambahkan lagu dengan `/play` untuk mengisi antrean.*')+
+   `\n**LOOP** ${session.loop}  ·  **AUTOPLAY** ${session.autoplay?'ON':'OFF'}`+
    (session.lastError?'\n\n\u26a0 Sedang mencoba sumber cadangan.':'')
   ))
   .addSeparatorComponents(rule())
@@ -54,7 +55,8 @@ export function playerView(session:MusicSession,volume:number,disabled=false){
    button('music:shuffle','Shuffle','\u21c4',ButtonStyle.Secondary,disabled),
    button('music:stop','Stop','\u25a0',ButtonStyle.Danger,disabled)
   ))
-  .addActionRowComponents(row(button('music:show_queue','Antrean','☷',ButtonStyle.Secondary,disabled),button('music:lyrics','Lirik','♫',ButtonStyle.Secondary,disabled)))
+  .addActionRowComponents(row(button('music:show_queue','Antrean','☷',ButtonStyle.Secondary,disabled),button('music:lyrics','Lirik','♫',ButtonStyle.Secondary,disabled),button('music:favorite','Favorit','♡',ButtonStyle.Secondary,disabled)))
+  .addActionRowComponents(row(button('music:loop',`Loop: ${session.loop}`,'↻',ButtonStyle.Secondary,disabled),button('music:autoplay',`Autoplay: ${session.autoplay?'ON':'OFF'}`,'∞',ButtonStyle.Secondary,disabled)))
   .addTextDisplayComponents(footer());
  return container;
 }

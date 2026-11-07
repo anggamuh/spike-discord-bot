@@ -32,7 +32,7 @@ export class Serial {
 }
 export interface AudioPlayer {playTrack(options:{track:{encoded:string}}):Promise<unknown>;stopTrack():Promise<unknown>;setPaused(value:boolean):Promise<unknown>}
 export class MusicSession {
- queue:Track[]=[];current?:Track;lastError='';closed=false;paused=false;
+ queue:Track[]=[];current?:Track;lastError='';closed=false;paused=false;loop:'off'|'song'|'queue'='off';autoplay=false;
  private requestedAt=0;private lastAdvanceAt=0;private maxPosition=0;private startTimer?:NodeJS.Timeout;started=false;progressed=false;
  get position(){return this.maxPosition;}
  private clearStartTimer(){if(this.startTimer)clearTimeout(this.startTimer);this.startTimer=undefined;}
@@ -95,10 +95,13 @@ export class MusicSession {
     this.lastError='Lavalink mengakhiri track tanpa progres audio; mencoba sumber cadangan.';
     await this.failed(track.encoded);return;
    }
+   if(this.loop==='song'){await this.playAgain(track);return;}
+   if(this.loop==='queue')this.queue.push({...track,info:{...track.info,position:0}});
    this.lastError='Lagu selesai menurut Lavalink. Antrean berikutnya dilanjutkan jika tersedia.';
    await this.next();return;
   }
  }
+ private async playAgain(track:Track){this.begin({...track,info:{...track.info,position:0}});await this.player.setPaused(false);await this.player.playTrack({track:{encoded:track.encoded}});this.armStartTimer(track.encoded);}
  async skip(){if(!this.current)throw new MusicError('Tidak ada lagu yang sedang diputar.');await this.player.stopTrack();await this.next();}
  async stop(){this.clearStartTimer();this.closed=true;this.queue=[];this.current=undefined;await this.player.stopTrack();}
 }
