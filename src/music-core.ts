@@ -33,14 +33,22 @@ export class Serial {
 export interface AudioPlayer {playTrack(options:{track:{encoded:string}}):Promise<unknown>;stopTrack():Promise<unknown>;setPaused(value:boolean):Promise<unknown>}
 export class MusicSession {
  queue:Track[]=[];current?:Track;lastError='';closed=false;paused=false;
- private requestedAt=0;private maxPosition=0;private startTimer?:NodeJS.Timeout;started=false;progressed=false;
+ private requestedAt=0;private lastAdvanceAt=0;private maxPosition=0;private startTimer?:NodeJS.Timeout;started=false;progressed=false;
  get position(){return this.maxPosition;}
  private clearStartTimer(){if(this.startTimer)clearTimeout(this.startTimer);this.startTimer=undefined;}
  private armStartTimer(encoded:string){this.clearStartTimer();if(!this.onStartTimeout||this.progressed||this.current?.encoded!==encoded)return;this.startTimer=setTimeout(()=>this.onStartTimeout?.(encoded),20000).unref();}
- private begin(track:Track){this.clearStartTimer();this.current=track;this.lastError='';this.requestedAt=this.clock();this.maxPosition=0;this.started=false;this.progressed=false;this.paused=false;}
- async setPaused(value:boolean){await this.player.setPaused(value);this.paused=value;}
+ private begin(track:Track){this.clearStartTimer();this.current=track;this.lastError='';this.requestedAt=this.clock();this.lastAdvanceAt=this.clock();this.maxPosition=0;this.started=false;this.progressed=false;this.paused=false;}
+ async setPaused(value:boolean){await this.player.setPaused(value);this.paused=value;this.lastAdvanceAt=this.clock();}
  start(encoded:string){if(this.current?.encoded===encoded)this.started=true;}
- progress(position:number){if(!this.current||!this.started||!Number.isFinite(position))return;this.maxPosition=Math.max(this.maxPosition,position);if(position>0){this.progressed=true;this.lastError='';this.clearStartTimer();}}
+ progress(position:number){if(!this.current||!this.started||!Number.isFinite(position))return false;const first=!this.progressed&&position>0;if(position>this.maxPosition)this.lastAdvanceAt=this.clock();this.maxPosition=Math.max(this.maxPosition,position);if(position>0){this.progressed=true;this.lastError='';this.clearStartTimer();}return first;}
+ // Only a real playback position near the reported end can trigger this guard.
+ endIsStalled(){
+  const info=this.current?.info;
+  if(!info||info.isStream||!Number.isFinite(info.length)||info.length<=0||this.closed||this.paused||!this.progressed)return false;
+  const remaining=info.length-this.maxPosition;
+  const nearEnd=remaining<=Math.min(5000,info.length*0.05);
+  return nearEnd&&(this.clock()-this.lastAdvanceAt>=15000||remaining<=-15000);
+ }
  constructor(public player:AudioPlayer,public channelId:string,private fallback?:(track:Track)=>Promise<Track|undefined>,private clock:()=>number=Date.now,private prepare?:(track:Track)=>Promise<Track>,private onStartTimeout?:(encoded:string)=>void){}
  private async recover(track:Track){
   if(!this.fallback||!['youtube','soundcloud'].includes(track.info.sourceName)||this.closed)return false;
@@ -62,7 +70,7 @@ export class MusicSession {
   if(await this.recover(this.current))return;
   await this.next();
  }
- add(rows:Track[]){const count=Math.min(rows.length,50-this.queue.length-(this.current?1:0));if(count<=0)throw new MusicError('Antrean penuh (maksimal 50 lagu termasuk yang diputar).');this.queue.push(...rows.slice(0,count));return count;}
+ add(rows:Track[]){const count=Math.min(rows.length,100-this.queue.length-(this.current?1:0));if(count<=0)throw new MusicError('Antrean penuh (maksimal 100 lagu termasuk yang diputar).');this.queue.push(...rows.slice(0,count));return count;}
  shuffle(){for(let i=this.queue.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[this.queue[i],this.queue[j]]=[this.queue[j]!,this.queue[i]!];}return this.queue.length;}
  async next(){
   this.clearStartTimer();this.current=undefined;let failures=0;

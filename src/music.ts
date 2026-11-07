@@ -1,14 +1,19 @@
+import {Lyrics,lyricPages} from './music-lyrics.js';
 import {resolveRequest,fallbackTrack,prepareTrack} from './music-resolver.js';
 import {reportMusicError} from './music-diagnostics.js';
-import {ChannelType,Client,Events,PermissionFlagsBits,MessageFlags,escapeMarkdown,type ChatInputCommandInteraction,type MessageComponentInteraction} from 'discord.js';
+import {ChannelType,Client,Events,PermissionFlagsBits,MessageFlags,escapeMarkdown,type ChatInputCommandInteraction,type MessageComponentInteraction,ActionRowBuilder,ButtonBuilder,ButtonStyle,EmbedBuilder} from 'discord.js';
 import {Connectors,Shoukaku,type Player} from 'shoukaku';
 import {MusicError,MusicSession,Serial,identifier,tracksFrom,duration} from './music-core.js';
-import {musicNotice,playerView,queueView} from './music-ui.js';
+import {musicNotice,playerView,queueView,trackAnnouncement,musicV2Flags} from './music-ui.js';
 export const musicNames=new Set(['play','skip','pause','resume','queue','stop','nowplaying','volume']);
 const sourceError=`Lavalink belum tersambung di ${process.env.LAVALINK_URL??'127.0.0.1:2333'}. Pastikan terminal npm run lavalink tetap berjalan.`;
 type Panel={interaction:ChatInputCommandInteraction;ownerId:string;guildId:string;session:MusicSession;mode:'player'|'queue';page:number;stop:()=>void;timer?:NodeJS.Timeout};
 export class Music {
  readonly shoukaku:Shoukaku;
+ private lyrics=new Lyrics(()=>this.client.user?.id??'0');
+ private watchdogs=new Map<string,NodeJS.Timeout>();
+ private checking=new Set<string>();
+ private notificationChannels=new WeakMap<MusicSession,string>();
  private sessions=new Map<string,MusicSession>();private serial=new Serial();private idle=new Map<string,NodeJS.Timeout>();private empty=new Map<string,NodeJS.Timeout>();private panels=new Map<string,Panel>();
  constructor(private client:Client){
   this.shoukaku=new Shoukaku(new Connectors.DiscordJS(client),[{name:'local',url:process.env.LAVALINK_URL??'127.0.0.1:2333',auth:process.env.LAVALINK_PASSWORD??'manuk-local-only',secure:process.env.LAVALINK_SECURE==='true'}],{resume:false,reconnectTries:5,reconnectInterval:5,restTimeout:15,voiceConnectionTimeout:20});
@@ -25,13 +30,20 @@ export class Music {
    else if(!this.empty.has(guild))this.empty.set(guild,setTimeout(()=>{void this.serial.run(guild,()=>this.dispose(guild)).catch(()=>{});},60000).unref());
   });
  }
- private clearTimers(guild:string){for(const map of [this.idle,this.empty]){const t=map.get(guild);if(t)clearTimeout(t);map.delete(guild);}}
+ private clearTimers(guild:string){for(const map of [this.idle,this.empty,this.watchdogs]){const t=map.get(guild);if(t)clearTimeout(t);map.delete(guild);}}
  private async dispose(guild:string){const s=this.sessions.get(guild);this.sessions.delete(guild);this.clearTimers(guild);this.clearPanel(guild);if(s)await s.stop().catch(()=>{});await this.shoukaku.leaveVoiceChannel(guild).catch(()=>{});}
  private armIdle(guild:string,s:MusicSession){const t=this.idle.get(guild);if(t)clearTimeout(t);this.idle.delete(guild);if(!s.current)this.idle.set(guild,setTimeout(()=>{void this.serial.run(guild,async()=>{if(!this.sessions.get(guild)?.current)await this.dispose(guild);}).catch(()=>{});},120000).unref());}
  private bind(guild:string,s:MusicSession,player:Player){
-  player.on('end',event=>{void this.serial.run(guild,async()=>{if(this.sessions.get(guild)!==s)return;await s.end(event.reason,event.track?.encoded);this.armIdle(guild,s);await this.refreshPanel(guild);}).catch(()=>{s.lastError=sourceError;});});
+  this.watchdogs.set(guild,setInterval(()=>{void this.checkQueue(guild,s,player);},5000).unref());
+  player.on('end',event=>{const ended=s.current;void this.serial.run(guild,async()=>{if(this.sessions.get(guild)!==s||s.current!==ended)return;await s.end(event.reason,event.track?.encoded);this.armIdle(guild,s);await this.refreshPanel(guild);}).catch(error=>{s.lastError=reportMusicError('QUEUE END',error);});});
   player.on('start',event=>{s.start(event.track.encoded);void this.refreshPanel(guild);});
-  player.on('update',event=>{const wasProgressed=s.progressed;s.progress(event.state.position);if(!wasProgressed&&s.progressed)console.log(`[MUSIC START] source=${s.current?.info.sourceName??'unknown'} evidence=position-progress`);});
+  player.on('update',event=>{
+   if(this.sessions.get(guild)!==s)return;
+   if(s.progress(event.state.position)){
+    console.log(`[MUSIC START] source=${s.current?.info.sourceName??'unknown'} evidence=position-progress`);
+    void this.announceTrack(guild,s);void this.refreshPanel(guild);
+   }
+  });
   player.on('exception',event=>{
    // Older Shoukaku typings omit track; capture the active track at event receipt.
    const captured=s.current;
@@ -44,6 +56,58 @@ export class Music {
   });
   player.on('stuck',event=>{const encoded=event.track?.encoded;void this.serial.run(guild,async()=>{if(this.sessions.get(guild)!==s)return;console.error(`[MUSIC PLAYBACK ERROR] track macet; source=${s.current?.info.sourceName??'unknown'}`);s.lastError='Lagu macet; mencoba sumber cadangan.';await s.failed(encoded);this.armIdle(guild,s);await this.refreshPanel(guild);}).catch(()=>{s.lastError=sourceError;});});
   player.on('closed',()=>{void this.serial.run(guild,()=>this.dispose(guild)).catch(()=>{});});
+ }
+ private async checkQueue(guild:string,s:MusicSession,player:Player){
+  if(this.checking.has(guild)||this.sessions.get(guild)!==s||s.closed||s.paused||!s.current||!s.progressed)return;
+  const current=s.current;this.checking.add(guild);
+  try{
+   const remote=await player.node.rest.getPlayer(guild);
+   if(!remote||remote.paused||!remote.voice.connected)return;
+   const sameTrack=remote.track?.encoded===current.encoded;
+   if(remote.track&&!sameTrack)return;
+   // The REST snapshot may expose fresher progress than the gateway update stream.
+   const state=(remote as typeof remote & {state?:{position:number}}).state;
+   if(s.current!==current||this.sessions.get(guild)!==s)return;
+   if(sameTrack&&Number.isFinite(state?.position))s.progress(state!.position);
+   if(remote.track&&!s.endIsStalled())return;
+   await this.serial.run(guild,async()=>{
+    if(this.sessions.get(guild)!==s||s.current!==current||s.paused||s.closed)return;
+    if(remote.track){
+     if(!s.endIsStalled())return;
+     console.log(`[MUSIC AUTO NEXT] Akhir lagu macet: positionMs=${s.position} durationMs=${current.info.length}; queue=${s.queue.length}`);
+     await s.skip();
+    }else{
+     console.log(`[MUSIC QUEUE] Lavalink idle; melanjutkan ${s.queue.length} lagu antrean.`);
+     await s.next();
+    }this.armIdle(guild,s);await this.refreshPanel(guild);
+   });
+  }catch(error){reportMusicError('QUEUE CHECK',error);}finally{this.checking.delete(guild);}
+ }
+ private async showLyrics(button:MessageComponentInteraction,session:MusicSession){
+  const track=session.current;
+  await button.deferReply({flags:MessageFlags.Ephemeral});
+  if(!track){await button.editReply({content:'Tidak ada lagu aktif.'});return;}
+  try{
+   const pages=lyricPages(await this.lyrics.get(track));let page=0;
+   const payload=(disabled=false)=>({embeds:[new EmbedBuilder().setColor(0x8b5cf6).setTitle(track.info.title.slice(0,256)).setDescription(escapeMarkdown(pages[page]!)).setFooter({text:`${track.info.author.slice(0,100)} · LRCLIB · ${page+1}/${pages.length}`})],components:pages.length>1?[new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId('lyrics:prev').setLabel('Sebelumnya').setStyle(ButtonStyle.Secondary).setDisabled(disabled||page===0),new ButtonBuilder().setCustomId('lyrics:next').setLabel('Berikutnya').setStyle(ButtonStyle.Primary).setDisabled(disabled||page===pages.length-1))]:[],allowedMentions:{parse:[] as never[]}});
+   const message=await button.editReply(payload());
+   if(pages.length>1){const collector=message.createMessageComponentCollector({time:10*60*1000,filter:i=>i.user.id===button.user.id});
+    collector.on('collect',i=>{page=Math.max(0,Math.min(pages.length-1,page+(i.customId==='lyrics:next'?1:-1)));void i.update(payload()).catch(()=>{});});
+    collector.on('end',()=>{void button.editReply(payload(true)).catch(()=>{});});}
+  }catch(error){await button.editReply({content:error instanceof MusicError?error.message:'Lirik belum dapat ditampilkan.'}).catch(()=>{});}
+ }
+ private async announceTrack(guild:string,s:MusicSession){
+  const channelId=this.notificationChannels.get(s),track=s.current;
+  if(!channelId||!track)return;
+  const card=trackAnnouncement(s,(s.player as Player).volume);
+  try{
+   const channel=await this.client.channels.fetch(channelId);
+   if(this.sessions.get(guild)!==s||s.closed||s.current!==track)return;
+   if(!channel?.isSendable())throw new Error('channel unavailable');
+   await channel.send({flags:musicV2Flags,components:[card],allowedMentions:{parse:[]}});
+  }catch{
+   console.warn('[MUSIC NOTICE] Notifikasi gagal dikirim. Periksa izin View Channel dan Send Messages (Send Messages in Threads untuk thread). Audio tetap berjalan.');
+  }
  }
  private async startTimedOut(guild:string,s:MusicSession,encoded:string){
   await this.serial.run(guild,async()=>{
@@ -85,6 +149,7 @@ export class Music {
      s=new MusicSession(player,voice.id,track=>{const active=this.shoukaku.getIdealNode();if(!active)throw new MusicError(sourceError);return fallbackTrack(q=>active.rest.resolve(q),track);},Date.now,track=>{const active=this.shoukaku.getIdealNode();if(!active)throw new MusicError(sourceError);return prepareTrack(q=>active.rest.resolve(q),track);},encoded=>{void this.startTimedOut(guild.id,s!,encoded);});this.sessions.set(guild.id,s);this.bind(guild.id,s,player);
      await player.setGlobalVolume(50).catch(()=>{});
     }
+    if(i.channelId)this.notificationChannels.set(s,i.channelId);
     s.add(tracks);if(!s.current)await s.next();this.armIdle(guild.id,s);
     if(!s.current)throw new MusicError(s.lastError||sourceError);
     await i.editReply({components:[playerView(s,(s.player as Player).volume)]});await this.attachPanel(guild.id,i,s,'player',1);return;
@@ -127,6 +192,8 @@ export class Music {
  private async handlePanelButton(panel:Panel,button:MessageComponentInteraction){
   if(button.user.id!==panel.ownerId){await button.reply({content:'Panel ini hanya dapat dikontrol oleh pemintanya.',flags:MessageFlags.Ephemeral}).catch(()=>{});return;}
   if(this.panels.get(panel.guildId)!==panel||this.sessions.get(panel.guildId)!==panel.session){await button.update({components:[musicNotice('Panel player sudah tidak aktif.')] }).catch(()=>{});return;}
+  if(button.customId==='music:lyrics'){await this.showLyrics(button,panel.session);return;}
+  if(button.customId==='music:show_queue'){panel.mode='queue';panel.page=1;await button.update({components:[queueView(panel.session,1,Math.max(1,Math.ceil(panel.session.queue.length/10)))]}).catch(()=>{});return;}
   if(button.customId==='music:page_prev'||button.customId==='music:page_next'){
    const pages=Math.max(1,Math.ceil(panel.session.queue.length/10));panel.mode='queue';panel.page=Math.max(1,Math.min(pages,panel.page+(button.customId==='music:page_next'?1:-1)));
    await button.update({components:[queueView(panel.session,panel.page,pages)]}).catch(()=>{});return;

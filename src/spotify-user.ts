@@ -66,11 +66,11 @@ export class SpotifyUser {
     const meta=await this.get(`/playlists/${id}?fields=public&market=ID`);
     if(meta.public!==true)throw new MusicError('Bot hanya mengimpor playlist publik, agar playlist privat akun pemilik bot tidak dibagikan ke server.');
    }
-   // Read at most 100 entries; retain at most 50 playable metadata rows.
-   for(let offset=0;offset<100&&rows.length<50;offset+=50){
+   // Read at most 100 entries; retain at most 100 playable metadata rows.
+   for(let offset=0;offset<100&&rows.length<100;offset+=50){
     const page=await this.get(`/${kind==='playlist'?'playlists':'albums'}/${id}/${kind==='playlist'?'items':'tracks'}?limit=50&offset=${offset}&market=ID`);
     if(!Array.isArray(page.items))throw new MusicError('Respons daftar lagu Spotify tidak lengkap.');
-    for(const entry of page.items){if(entry?.is_local)continue;const row=spotifyTrack(kind==='playlist'?(entry?.item??entry?.track):entry);if(row)rows.push(row);if(rows.length===50)break;}
+    for(const entry of page.items){if(entry?.is_local)continue;const row=spotifyTrack(kind==='playlist'?(entry?.item??entry?.track):entry);if(row)rows.push(row);if(rows.length===100)break;}
     if(!page.next)break;
    }
   }

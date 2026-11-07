@@ -1,4 +1,4 @@
-import {spotifyUser} from './spotify-user.js';
+import {loadSpotify} from './spotify-public.js';
 import {LoadType,type LavalinkResponse,type Track} from 'shoukaku';
 import {MusicError,tracksFrom} from './music-core.js';
 import {reportMusicError} from './music-diagnostics.js';
@@ -67,7 +67,7 @@ export async function bandcamp(resolve:Resolve,query:string):Promise<Track>{
  return track;
 }
 export async function resolveRequest(resolve:Resolve,query:string):Promise<Track[]>{
- if(query.startsWith('https://open.spotify.com/'))return spotifyUser.load(query);
+ if(query.startsWith('https://open.spotify.com/'))return loadSpotify(query);
  if(query.startsWith('bcsearch:'))return [await bandcamp(resolve,query.slice(9))];
  if(query.startsWith('scsearch:')){
   try{const track=await soundcloud(resolve,query.slice(9));console.log('[MUSIC LOAD SUCCESS] source=SoundCloud count=1');return [track];}
