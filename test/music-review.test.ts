@@ -32,3 +32,16 @@ test('public panel edits same message across song changes and namespaces control
  await (Music.prototype as any).refreshPublic.call(owner,'g',s);await s.skip();await (Music.prototype as any).refreshPublic.call(owner,'g',s);assert.equal(sends,1);assert.equal(edits,1);assert.match(JSON.stringify(payload),/public:music:skip/);assert.deepEqual(payload.allowedMentions.parse,[]);await s.stop();
 });
 test('all slash command builders validate and names are unique',()=>{const names=commands.map(c=>c.toJSON().name);assert.equal(new Set(names).size,names.length);assert.ok(names.includes('panel'));});
+
+test('realistic Lavalink v4 state.connected snapshot recovers 3:29/3:33 stall and starts autoplay',async()=>{
+ let now=1000;const p=player(),s=new MusicSession(p,'v',undefined,()=>now);const a=track('a');a.info.length=213000;s.autoplay=true;s.add([a]);await s.next();s.start('a');s.progress(209000);now+=16000;
+ const owner:any={checking:new Set(),sessions:new Map([['g',s]]),serial:{run:async(_g:string,fn:()=>Promise<void>)=>fn()},onProgress:(Music.prototype as any).onProgress,save(){},announceTrack:async()=>{},persistence:{history:()=>[]},shoukaku:{getIdealNode:()=>({rest:{resolve:async()=>({loadType:LoadType.SEARCH,data:[a,track('b')]})}})},finishTrack:(Music.prototype as any).finishTrack,armIdle(){},refreshPanel:async()=>{}};
+ const remote={track:a,paused:false,voice:{token:'test',endpoint:'test',sessionId:'test'},state:{connected:true,position:209000}};
+ await (Music.prototype as any).checkQueue.call(owner,'g',s,{node:{rest:{getPlayer:async()=>remote}}});assert.equal(s.current?.encoded,'b');assert.deepEqual(p.played,['a','b']);assert.equal(owner.checking.size,0);await s.stop();
+});
+test('watchdog honors explicit disconnect and pause, but accepts omitted optional connectivity',async()=>{
+ let now=0;const s=new MusicSession(player(),'v',undefined,()=>now);const a=track('a');a.info.length=213000;s.add([a,track('b')]);await s.next();s.start('a');s.progress(209000);now=16000;
+ const owner:any={checking:new Set(),sessions:new Map([['g',s]]),serial:{run:async(_g:string,fn:()=>Promise<void>)=>fn()},onProgress:()=>{},finishTrack:(Music.prototype as any).finishTrack,armIdle(){},refreshPanel:async()=>{}};
+ for(const response of [{paused:false,state:{connected:false}},{paused:true,state:{connected:true}}]){await (Music.prototype as any).checkQueue.call(owner,'g',s,{node:{rest:{getPlayer:async()=>({track:a,voice:{},...response})}}});assert.equal(s.current?.encoded,'a');}
+ await (Music.prototype as any).checkQueue.call(owner,'g',s,{node:{rest:{getPlayer:async()=>({track:a,paused:false,voice:{}})}}});assert.equal(s.current?.encoded,'b');await s.stop();
+});

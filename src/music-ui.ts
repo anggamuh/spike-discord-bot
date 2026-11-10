@@ -34,7 +34,7 @@ export function musicNotice(message:string){
 
 export function playerView(session:MusicSession,volume:number,disabled=false){
  const track=session.current,container=base('PEMUTAR');
- if(!track)return musicNotice('Tidak ada lagu yang sedang diputar. Gunakan `/play` untuk menambahkan musik.');
+ if(!track)return musicNotice(`${session.stay?'24/7 ON · Standby di voice.':'Tidak ada lagu yang sedang diputar.'} ${session.queue.length?`${session.queue.length} lagu tersimpan; gunakan /resume.`:'Gunakan /play untuk menambahkan musik.'}`+(session.lastError?'\n'+safe(session.lastError,300):''));
  const {info}=track,position=Math.max(session.position,info.position||0),length=info.length;
  const status=session.paused?'\u23f8 PAUSED':session.progressed?'\u25b6 PLAYING':'\u25f7 LOADING';
  const meta=`**${safe(info.author,100)}**\n${source(info.sourceName)}  |  ${duration(length,info.isStream)}  |  ${status}`;
@@ -45,7 +45,7 @@ export function playerView(session:MusicSession,volume:number,disabled=false){
   .addTextDisplayComponents(new TextDisplayBuilder().setContent(
    `**ANTREAN**  ${session.queue.length} ${session.queue.length===1?'track':'tracks'}    **VOLUME**  ${Math.round(volume)}%`+
    (next?`\n**BERIKUTNYA**  ${safe(next.info.title,90)} | ${safe(next.info.author,60)}`:'\n*Tambahkan lagu dengan `/play` untuk mengisi antrean.*')+
-   `\n**LOOP** ${session.loop}  ·  **AUTOPLAY** ${session.autoplay?'ON':'OFF'}`+
+   `\n**LOOP** ${session.loop}  ·  **AUTOPLAY** ${session.autoplay?session.autoplayStyle.toUpperCase():'OFF'} · **ADIL** ${session.fair?'ON':'OFF'} · **24/7** ${session.stay?'ON':'OFF'}`+
    (session.lastError?'\n\n\u26a0 Sedang mencoba sumber cadangan.':'')
   ))
   .addSeparatorComponents(rule())
@@ -56,7 +56,8 @@ export function playerView(session:MusicSession,volume:number,disabled=false){
    button('music:stop','Stop','\u25a0',ButtonStyle.Danger,disabled)
   ))
   .addActionRowComponents(row(button('music:show_queue','Antrean','☷',ButtonStyle.Secondary,disabled),button('music:lyrics','Lirik','♫',ButtonStyle.Secondary,disabled),button('music:favorite','Favorit','♡',ButtonStyle.Secondary,disabled)))
-  .addActionRowComponents(row(button('music:loop',`Loop: ${session.loop}`,'↻',ButtonStyle.Secondary,disabled),button('music:autoplay',`Autoplay: ${session.autoplay?'ON':'OFF'}`,'∞',ButtonStyle.Secondary,disabled)))
+  .addActionRowComponents(row(button('music:loop',`Loop: ${session.loop}`,'↻',ButtonStyle.Secondary,disabled),button('music:autoplay',`Autoplay: ${session.autoplay?'ON':'OFF'}`,'∞',ButtonStyle.Secondary,disabled),button('music:replay','Replay','↺',ButtonStyle.Secondary,disabled),button('music:savequeue','Simpan antrean','▣',ButtonStyle.Secondary,disabled)))
+  .addActionRowComponents(row(button('music:volume_down','Volume −10','−',ButtonStyle.Secondary,disabled||volume<=0),button('music:volume_up','Volume +10','+',ButtonStyle.Secondary,disabled||volume>=100)))
   .addTextDisplayComponents(footer());
  return container;
 }
@@ -79,7 +80,7 @@ export function queueView(session:MusicSession,page:number,pages:number,disabled
   .addActionRowComponents(row(
    button('music:page_prev','Previous','\u2039',ButtonStyle.Secondary,disabled||page<=1),
    button('music:page_next','Next','\u203a',ButtonStyle.Secondary,disabled||page>=pages),
-   button('music:show_player','Player','\u266b',ButtonStyle.Primary,disabled)
+   button('music:show_player','Player','\u266b',ButtonStyle.Primary,disabled),button('music:savequeue','Simpan antrean','▣',ButtonStyle.Secondary,disabled)
   ))
   .addTextDisplayComponents(footer());
  return container;

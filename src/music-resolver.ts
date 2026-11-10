@@ -137,9 +137,16 @@ export async function prepareTrack(resolve:Resolve,track:Track):Promise<Track>{
  playable.pluginInfo={...(playable.pluginInfo as Record<string,unknown>),requester:(track.pluginInfo as Record<string,unknown>|undefined)?.requester};return playable;
 }
 
-export async function recommendTrack(resolve:Resolve,previous:Track,recent:string[]){
+export async function recommendTrack(resolve:Resolve,previous:Track,recent:string[],style:'artist'|'mix'='artist',artists:string[]=[]){
  const key=(t:string)=>words(cleanTitle(t)).join(' '),used=new Set(recent.map(key));used.add(key(previous.info.title));
  const artist=previous.info.author.replace(/\s*-\s*Topic$/i,'');
- for(const prefix of ['ytmsearch:','scsearch:']){try{const rows=tracksFrom(await resolve(prefix+artist.slice(0,200)),'autoplay',true);const candidate=rows.find(t=>!t.info.isStream&&t.info.length>30000&&!used.has(key(t.info.title)));if(candidate)return candidate;}catch{}}
+ const artistKey=(a:string)=>key(a.replace(/\s*-\s*Topic$/i,''));
+ const others=[...new Set(artists)].filter(a=>a&&artistKey(a)!==artistKey(artist)).slice(0,4);
+ const terms=style==='mix'?[...others,`${artist} similar artists`]:[artist];
+ for(const term of terms)for(const prefix of ['ytmsearch:','scsearch:']){try{
+  const rows=tracksFrom(await resolve(prefix+term.slice(0,200)),'autoplay',true);
+  const candidates=rows.filter(t=>!t.info.isStream&&t.info.length>30000&&t.info.length<900000&&!used.has(key(t.info.title))&&(style==='mix'?artistKey(t.info.author)!==artistKey(artist):artistKey(t.info.author)===artistKey(artist)));
+  if(candidates.length)return candidates[Math.floor(Math.random()*candidates.length)];
+ }catch{}}
  return undefined;
 }

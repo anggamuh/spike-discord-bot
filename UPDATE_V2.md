@@ -1,4 +1,4 @@
-# ManukAPP 1.6.0 — hasil review
+# ManukAPP 1.6.1 — hasil review
 
 ## Cara pasang di Windows
 
@@ -46,4 +46,7 @@ Resume tidak otomatis masuk voice setelah restart. Spotify menyediakan daftar/me
 
 ## Validasi
 
-TypeScript build dan 68 tes lokal lulus, termasuk penyimpanan snapshot, loop, autoplay, pemulihan metadata, serta panel publik yang mengedit pesan yang sama. Pengujian Discord voice langsung belum dijalankan dari lingkungan review.
+TypeScript build dan 70 tes lokal lulus, termasuk penyimpanan snapshot, loop, autoplay, pemulihan metadata, serta panel publik yang mengedit pesan yang sama. Pengujian Discord voice langsung belum dijalankan dari lingkungan review.
+
+## Perbaikan 1.6.1
+Watchdog menerima respons Lavalink tanpa voice.connected; state.connected menjadi acuan utama. Uji regresi posisi 209/213 detik berhasil memicu autoplay. Guard tetap mengabaikan pause dan koneksi putus eksplisit.

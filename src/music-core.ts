@@ -1,3 +1,4 @@
+import {fairOrder} from './music-options.js';
 import {reportMusicError} from './music-diagnostics.js';
 import {LoadType,type LavalinkResponse,type Track} from 'shoukaku';
 export class MusicError extends Error {}
@@ -30,9 +31,9 @@ export class Serial {
   try{return await task;}finally{if(this.tails.get(key)===task)this.tails.delete(key);}
  }
 }
-export interface AudioPlayer {playTrack(options:{track:{encoded:string}}):Promise<unknown>;stopTrack():Promise<unknown>;setPaused(value:boolean):Promise<unknown>}
+export interface AudioPlayer {playTrack(options:{track:{encoded:string}}):Promise<unknown>;stopTrack():Promise<unknown>;setPaused(value:boolean):Promise<unknown>;seekTo?(position:number):Promise<unknown>}
 export class MusicSession {
- queue:Track[]=[];current?:Track;lastError='';closed=false;paused=false;loop:'off'|'song'|'queue'='off';autoplay=false;
+ queue:Track[]=[];current?:Track;lastError='';closed=false;paused=false;loop:'off'|'song'|'queue'='off';autoplay=false;autoplayStyle:'artist'|'mix'='artist';fair=false;stay=false;
  private requestedAt=0;private lastAdvanceAt=0;private maxPosition=0;private startTimer?:NodeJS.Timeout;started=false;progressed=false;
  get position(){return this.maxPosition;}
  private clearStartTimer(){if(this.startTimer)clearTimeout(this.startTimer);this.startTimer=undefined;}
@@ -57,7 +58,7 @@ export class MusicSession {
    try{
     const replacement=await this.fallback(candidate);if(!replacement)return false;
     console.log(`[MUSIC FALLBACK CANDIDATE] source=${replacement.info.sourceName} title=${replacement.info.title.slice(0,100)}`);
-    this.begin(replacement);this.lastError=`Mencoba hasil terdekat dari ${replacement.info.sourceName}; versi lagu bisa berbeda.`;
+    replacement.pluginInfo={...(replacement.pluginInfo as Record<string,unknown>),requester:(track.pluginInfo as any)?.requester};this.begin(replacement);this.lastError=`Mencoba hasil terdekat dari ${replacement.info.sourceName}; versi lagu bisa berbeda.`;
     console.log(`[MUSIC PLAYBACK ATTEMPT] source=${replacement.info.sourceName} title=${replacement.info.title.slice(0,100)}`);
     await this.player.setPaused(false);await this.player.playTrack({track:{encoded:replacement.encoded}});this.armStartTimer(replacement.encoded);return true;
    }catch(error){this.lastError=reportMusicError('FALLBACK PLAYBACK',error);candidate=this.current??candidate;}
@@ -70,12 +71,15 @@ export class MusicSession {
   if(await this.recover(this.current))return;
   await this.next();
  }
- add(rows:Track[]){const count=Math.min(rows.length,100-this.queue.length-(this.current?1:0));if(count<=0)throw new MusicError('Antrean penuh (maksimal 100 lagu termasuk yang diputar).');this.queue.push(...rows.slice(0,count));return count;}
+ add(rows:Track[]){const count=Math.min(rows.length,100-this.queue.length-(this.current?1:0));if(count<=0)throw new MusicError('Antrean penuh (maksimal 100 lagu termasuk yang diputar).');this.queue.push(...rows.slice(0,count));this.rebalance();return count;}
+ rebalance(){if(this.fair)this.queue=fairOrder(this.queue,this.current);}
+ addNext(rows:Track[]){const count=this.add(rows.map(t=>({...t,pluginInfo:{...(t.pluginInfo as Record<string,unknown>),playNext:true}})));const added=this.queue.filter(t=>(t.pluginInfo as any)?.playNext);this.queue=[...added,...this.queue.filter(t=>!(t.pluginInfo as any)?.playNext)];return count;}
+ async seek(position:number){const t=this.current;if(!t)throw new MusicError('Tidak ada lagu aktif.');if(t.info.isStream||!t.info.isSeekable||!this.player.seekTo)throw new MusicError('Sumber ini tidak mendukung seek.');if(!Number.isFinite(position)||position<0||position>=t.info.length)throw new MusicError('Posisi harus sebelum akhir lagu.');await this.player.seekTo(position);this.maxPosition=position;t.info.position=position;this.lastAdvanceAt=this.clock();}
  shuffle(){for(let i=this.queue.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[this.queue[i],this.queue[j]]=[this.queue[j]!,this.queue[i]!];}return this.queue.length;}
  async next(){
   this.clearStartTimer();this.current=undefined;let failures=0;
   while(!this.closed&&this.queue.length){
-   let track=this.queue.shift()!;this.begin(track);
+   let track=this.queue.shift()!;track={...track,pluginInfo:{...(track.pluginInfo as Record<string,unknown>),playNext:false}};this.begin(track);
    try{if(this.prepare){track=await this.prepare(track);if(this.closed)return;this.begin(track);}console.log(`[MUSIC PLAYBACK ATTEMPT] source=${track.info.sourceName} title=${track.info.title.slice(0,100)}`);await this.player.setPaused(false);await this.player.playTrack({track:{encoded:track.encoded}});this.armStartTimer(track.encoded);return;}catch(error){this.lastError=reportMusicError('PLAYBACK ERROR',error);if(await this.recover(track))return;this.current=undefined;failures++;}
   }
   if(!this.current&&failures)console.error(`[MUSIC QUEUE] ${failures} track playback request(s) failed; queue advanced after exhausting available tracks.`);

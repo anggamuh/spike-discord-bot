@@ -69,4 +69,11 @@ The music subsystem now creates SQLite tables automatically in `DATABASE_PATH` f
 
 Fitur musik V2 yang tersedia: snapshot SQLite, /resume, loop song/queue, autoplay, pengelolaan antrean, vote skip, riwayat, favorit pribadi, playlist server, role DJ, dan panel publik /panel. Lihat UPDATE_V2.md untuk pemasangan dan perilaku fitur.
 
-Dynamic Voice Channel Music Status menggunakan `PUT /channels/{id}/voice-status` melalui REST client resmi discord.js. Manuk menampilkan metadata judul/artis saat track mulai, memberi awalan pause saat dijeda, dan menghapus status yang dikelolanya saat antrean selesai atau sesi dihentikan. Berikan bot permission **Set Voice Channel Status** pada voice channel. Jika bot sudah tidak berada di voice channel ketika membersihkan status, Discord juga meminta **Manage Channels**. Status manual yang diketahui dari cache channel atau gateway event tidak ditimpa; permintaan status menggunakan debounce per guild dan dibatasi 500 karakter. Tidak ada environment variable baru.
+## Update 1.7.0
+Tujuh peningkatan musik dan panduan perintah tersedia di UPDATE_1.7.md. Perbaikan auto-next/autoplay 1.6.1 dipertahankan.
+
+## ManukAPP V3.0
+Mode 24/7, panel volume, serta Wrapped bulanan tersedia. Baca UPDATE_V3.md sebelum pemasangan. Web dashboard dan rekomendasi genre belum termasuk rilis ini.
+
+## Profil 3.1.0
+Gunakan /profile untuk kartu avatar, nama, top server, teman dengar bareng, dan lagu teratas. Baca UPDATE_PROFILE.md. Pengembangan dashboard ditunda; pemutar yang sudah ada tetap tersedia.

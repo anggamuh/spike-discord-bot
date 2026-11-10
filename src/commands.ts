@@ -1,11 +1,32 @@
-import {SlashCommandBuilder} from 'discord.js';
+import {SlashCommandBuilder,ChannelType} from 'discord.js';
 export const commands=[
+ new SlashCommandBuilder().setName('profile').setDescription('Kartu profil musik pribadimu: server, teman, dan lagu teratas.').setDMPermission(false).addStringOption(o=>o.setName('theme').setDescription('Warna kartu').addChoices({name:'Merah',value:'red'},{name:'Ungu',value:'purple'},{name:'Biru',value:'blue'})),
+
+ new SlashCommandBuilder().setName('247').setDescription('Standby voice 24/7; host tetap harus menyala.').setDMPermission(false).addStringOption(o=>o.setName('mode').setDescription('On, off, atau status').setRequired(true).addChoices({name:'On',value:'on'},{name:'Off',value:'off'},{name:'Status',value:'status'})),
+ new SlashCommandBuilder().setName('wrapped').setDescription('Statistik musik bulanan server (WIB).').setDMPermission(false).addStringOption(o=>o.setName('month').setDescription('YYYY-MM; kosongkan untuk bulan ini').setMinLength(7).setMaxLength(7)),
+
+ new SlashCommandBuilder().setName('playnext').setDescription('Masukkan lagu di depan antrean tanpa memotong lagu aktif.').setDMPermission(false).addStringOption(o=>o.setName('query').setDescription('Judul atau link musik').setRequired(true).setMaxLength(500)),
+ new SlashCommandBuilder().setName('seek').setDescription('Lompat ke posisi lagu.').setDMPermission(false).addStringOption(o=>o.setName('position').setDescription('Detik atau mm:ss, misalnya 90 atau 1:30').setRequired(true)),
+ new SlashCommandBuilder().setName('replay').setDescription('Ulang lagu aktif dari awal.').setDMPermission(false),
+ new SlashCommandBuilder().setName('fairqueue').setDescription('Atur giliran request per pendengar.').setDMPermission(false).addStringOption(o=>o.setName('mode').setDescription('Mode antrean').setRequired(true).addChoices({name:'On',value:'on'},{name:'Off',value:'off'},{name:'Status',value:'status'})),
+ new SlashCommandBuilder().setName('savequeue').setDescription('Simpan lagu aktif dan antrean menjadi playlist server baru.').setDMPermission(false).addStringOption(o=>o.setName('name').setDescription('Nama playlist baru').setRequired(true).setMaxLength(50)),
+ new SlashCommandBuilder().setName('status').setDescription('Status koneksi dan pemutar musik server ini.').setDMPermission(false),
+ new SlashCommandBuilder().setName('musicsettings').setDescription('Default musik untuk sesi baru; admin/Manage Server.').setDMPermission(false)
+ .addIntegerOption(o=>o.setName('volume').setDescription('Volume awal 0–100').setMinValue(0).setMaxValue(100))
+ .addBooleanOption(o=>o.setName('autoplay').setDescription('Autoplay awal'))
+ .addStringOption(o=>o.setName('style').setDescription('Gaya autoplay awal').addChoices({name:'Satu artis',value:'artist'},{name:'Campur artis',value:'mix'}))
+ .addBooleanOption(o=>o.setName('fair').setDescription('Antrean bergantian per pendengar'))
+ .addIntegerOption(o=>o.setName('idle').setDescription('Keluar saat antrean habis, detik (30–3600)').setMinValue(30).setMaxValue(3600))
+ .addIntegerOption(o=>o.setName('empty').setDescription('Keluar saat voice kosong, detik (30–3600)').setMinValue(30).setMaxValue(3600))
+ .addChannelOption(o=>o.setName('channel').setDescription('Channel panel tetap').addChannelTypes(ChannelType.GuildText))
+ .addBooleanOption(o=>o.setName('auto_channel').setDescription('True: panel mengikuti channel request lagi')),
+
  new SlashCommandBuilder().setName('panel').setDescription('Tampilkan atau pindahkan panel musik publik.').setDMPermission(false),
  new SlashCommandBuilder().setName('play').setDescription('Putar judul, link lagu, atau playlist musik.').setDMPermission(false).addStringOption(o=>o.setName('query').setDescription('Judul lagu atau link YouTube/SoundCloud').setRequired(true).setMaxLength(500)).addStringOption(o=>o.setName('source').setDescription('Sumber pencarian judul').addChoices({name:'YouTube Music',value:'youtube'},{name:'SoundCloud',value:'soundcloud'},{name:'Bandcamp',value:'bandcamp'})),
  new SlashCommandBuilder().setName('queue').setDescription('Lihat antrean musik.').setDMPermission(false).addIntegerOption(o=>o.setName('page').setDescription('Nomor halaman').setMinValue(1).setMaxValue(10)),
  new SlashCommandBuilder().setName('volume').setDescription('Atur volume 0–100%.').setDMPermission(false).addIntegerOption(o=>o.setName('level').setDescription('Volume persen').setRequired(true).setMinValue(0).setMaxValue(100)),
  ...[['skip','Lewati lagu aktif.'],['pause','Jeda musik.'],['resume','Lanjutkan musik.'],['stop','Hentikan musik dan keluar voice.'],['nowplaying','Lihat lagu aktif dan kontrol pemutar.']].map(([name,desc])=>new SlashCommandBuilder().setName(name!).setDescription(desc!).setDMPermission(false)),
- new SlashCommandBuilder().setName('autoplay').setDescription('Atur autoplay.').setDMPermission(false).addStringOption(o=>o.setName('mode').setDescription('Mode autoplay').setRequired(true).addChoices({name:'On',value:'on'},{name:'Off',value:'off'},{name:'Status',value:'status'})),
+ new SlashCommandBuilder().setName('autoplay').setDescription('Atur autoplay.').setDMPermission(false).addStringOption(o=>o.setName('mode').setDescription('Mode autoplay').setRequired(true).addChoices({name:'On',value:'on'},{name:'Off',value:'off'},{name:'Status',value:'status'})).addStringOption(o=>o.setName('style').setDescription('Satu artis atau campuran').addChoices({name:'Satu artis',value:'artist'},{name:'Campur artis',value:'mix'})),
  new SlashCommandBuilder().setName('loop').setDescription('Atur mode loop.').setDMPermission(false).addStringOption(o=>o.setName('mode').setDescription('Mode loop').setRequired(true).addChoices({name:'Off',value:'off'},{name:'Song',value:'song'},{name:'Queue',value:'queue'},{name:'Status',value:'status'})),
  new SlashCommandBuilder().setName('remove').setDescription('Hapus lagu antrean (posisi mulai 1).').setDMPermission(false).addIntegerOption(o=>o.setName('position').setDescription('Posisi lagu').setRequired(true).setMinValue(1)),
  new SlashCommandBuilder().setName('move').setDescription('Pindahkan lagu di antrean.').setDMPermission(false).addIntegerOption(o=>o.setName('from').setDescription('Posisi asal').setRequired(true).setMinValue(1)).addIntegerOption(o=>o.setName('to').setDescription('Posisi tujuan').setRequired(true).setMinValue(1)),

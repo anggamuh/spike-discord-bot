@@ -12,7 +12,7 @@ const music=process.env.MUSIC_ENABLED==='false'?undefined:new Music(client);
 const cooldown=new Map<string,number>(),busy=new Set<string>();
 const clean=(s:string)=>escapeMarkdown(s).slice(0,150);
 const base=()=>new EmbedBuilder().setColor(0xff4655).setFooter({text:dataMode==='demo'?'SPIKE • DATA DEMO, bukan statistik asli':'SPIKE • HenrikDev (tidak resmi) • cache maks. 60 detik'}).setTimestamp();
-client.once(Events.ClientReady,()=>console.log(`ManukAPP v1.6.1 online • mode ${dataMode}. Gunakan /help.`));
+client.once(Events.ClientReady,()=>console.log(`ManukAPP v3.1.0 online • mode ${dataMode}. Gunakan /help.`));
 client.on(Events.InteractionCreate,async i=>{
  if(i.isAutocomplete()){if(music&&musicNames.has(i.commandName))await music.autocomplete(i);else await i.respond([]).catch(()=>{});return;}
  if(!i.isChatInputCommand())return;
@@ -28,7 +28,7 @@ client.on(Events.InteractionCreate,async i=>{
  }
  await i.deferReply({flags:MessageFlags.Ephemeral});
  if(c==='ping'){await i.editReply(`Pong! Gateway ${Math.max(0,client.ws.ping)} ms • ${dataMode}`);return;}
- if(c==='help'){await i.editReply({embeds:[base().setTitle('SPIKE / Play. Track. Improve.').setDescription('Musik: masuk voice lalu `/play query:judul lagu`.\nKontrol: /skip /pause /resume /queue /stop /nowplaying /volume.\nMusik tidak memerlukan link Riot atau API HenrikDev.\n\nValorant:\n1. `/link riot_id:Angga#IDN setuju:True region:ap`\n2. `/rank`, `/stats`, atau `/matches`\n3. `/unlink` untuk menghapus ID.\n\nJawaban command hanya terlihat olehmu. Notifikasi lagu baru tampil di channel /play terakhir. /link menyimpan ID pilihanmu, bukan login atau verifikasi Riot. Bot tidak meminta password Riot. Mode demo hanya mendukung Angga#IDN. Mode live mengirim Riot ID ke HenrikDev. Statistik dihitung dari sampel pertandingan, bukan lifetime.')]});return;}
+ if(c==='help'){await i.editReply({embeds:[base().setTitle('SPIKE / Play. Track. Improve.').setDescription('Musik: masuk voice lalu `/play query:judul lagu`.\nKontrol: /skip /pause /resume /queue /stop /nowplaying /volume.\nTambahan: /playnext /seek /replay /fairqueue /savequeue.\nAutoplay: /autoplay mode:on style:artist atau mix.\nAdmin: /musicsettings · Diagnostik: /status.\nV3: /247 mode:on untuk standby; /wrapped untuk statistik bulanan WIB.\nProfil gambar: /profile (privat), tema red/purple/blue.\nMusik tidak memerlukan link Riot atau API HenrikDev.\n\nValorant:\n1. `/link riot_id:Angga#IDN setuju:True region:ap`\n2. `/rank`, `/stats`, atau `/matches`\n3. `/unlink` untuk menghapus ID.\n\nJawaban command hanya terlihat olehmu. Panel publik diperbarui di channel request atau channel tetap yang dikonfigurasi. /link menyimpan ID pilihanmu, bukan login atau verifikasi Riot. Bot tidak meminta password Riot. Mode demo hanya mendukung Angga#IDN. Mode live mengirim Riot ID ke HenrikDev. Statistik dihitung dari sampel pertandingan, bukan lifetime.')]});return;}
  if(c==='unlink'){store.remove(uid);await i.editReply('Riot ID tersimpan dihapus dari semua mode. Cache statistik provider kedaluwarsa maksimal 60 detik.');return;}
  if(c==='link'){
  if(!i.options.getBoolean('setuju',true))throw new Error('Penyimpanan dibatalkan. Persetujuan diperlukan untuk mengambil statistik dan menyimpan Riot ID.');
