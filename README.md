@@ -1,3 +1,7 @@
+# Update terbaru: ManukAPP 3.2.0
+
+Lihat UPDATE_3.2.md untuk instalasi, /help lengkap, /profileset, /top, dan backup otomatis. Dokumen versi lama menjelaskan perilaku saat versi tersebut dirilis.
+
 # Update 1.5.0
 
 Impor Spotify kini memerlukan login pengguna lokal. Baca SPOTIFY.md; jalankan npm run spotify:login sekali, lalu npm start.

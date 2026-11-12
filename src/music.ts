@@ -1,4 +1,4 @@
-import {renderProfile,discordAvatar} from './music-profile.js';
+import {renderProfile,discordAvatar,listeningTime} from './music-profile.js';
 import {PlaybackMeter,monthKey,validMonth} from './music-meter.js';
 import {parsePosition,type MusicPreferences} from './music-options.js';
 import {Lyrics,lyricPages} from './music-lyrics.js';
@@ -8,8 +8,8 @@ import {AttachmentBuilder,MediaGalleryBuilder,MediaGalleryItemBuilder,TextDispla
 import {Connectors,Shoukaku,type Player,type Track} from 'shoukaku';
 import {MusicError,MusicSession,Serial,identifier,tracksFrom,duration} from './music-core.js';
 import {musicNotice,playerView,queueView,trackAnnouncement,musicV2Flags} from './music-ui.js';
-import {MusicPersistence,restoredTrack,type SavedTrack} from './music-persistence.js';
-export const musicNames=new Set(['play','skip','pause','resume','queue','stop','nowplaying','volume','autoplay','loop','remove','move','jump','shuffle','clear','voteskip','history','favorite','playlist','dj','panel','playnext','seek','replay','fairqueue','savequeue','status','musicsettings','247','wrapped','profile']);
+import {MusicPersistence,restoredTrack,type SavedTrack,type ProfileSettings} from './music-persistence.js';
+export const musicNames=new Set(['play','skip','pause','resume','queue','stop','nowplaying','volume','autoplay','loop','remove','move','jump','shuffle','clear','voteskip','history','favorite','playlist','dj','panel','playnext','seek','replay','fairqueue','savequeue','status','musicsettings','247','wrapped','profile','profileset','top']);
 const sourceError=`Lavalink belum tersambung di ${process.env.LAVALINK_URL??'127.0.0.1:2333'}. Pastikan terminal npm run lavalink tetap berjalan.`;
 const boundedInteger=(name:string,fallback:number,min:number,max:number)=>{const parsed=Number(process.env[name]??fallback);return Number.isFinite(parsed)?Math.max(min,Math.min(max,Math.trunc(parsed))):fallback;};
 type Panel={interaction:ChatInputCommandInteraction|MessageComponentInteraction;ownerId:string;guildId:string;session:MusicSession;mode:'player'|'queue';page:number;stop:()=>void;timer?:NodeJS.Timeout};
@@ -45,11 +45,32 @@ export class Music {
   if(ms>0&&s.current)this.persistence.recordListening(guild,this.savedTrack(s.current,'unknown'),now.filter(id=>previous.has(id)),ms);
  }
  private async profile(i:ChatInputCommandInteraction){
-  const result=this.persistence.listeningProfile(i.user.id);
+  const result=this.persistence.listeningProfile(i.user.id),settings=this.persistence.profileSettings(i.user.id);
   const friends=await Promise.all(result.friends.map(async row=>{const user=await this.client.users.fetch(row.id).catch(()=>undefined);return {name:user?.globalName??user?.username??'Pengguna tidak tersedia',ms:row.ms};}));
   const avatar=await discordAvatar(i.user.displayAvatarURL({extension:'png',size:256}));
-  const png=await renderProfile({name:i.user.globalName??i.user.username,avatar,totalMs:result.total.ms,serverCount:result.total.servers,trackCount:result.total.tracks,servers:result.servers.map(r=>({name:this.client.guilds.cache.get(r.id)?.name??'Server tidak tersedia',ms:r.ms})),friends,tracks:result.tracks.map(t=>({name:t.title,detail:t.author,ms:t.ms})),theme:(i.options.getString('theme')??'red') as 'red'|'purple'|'blue'});
+  const png=await renderProfile({name:i.user.globalName??i.user.username,avatar,totalMs:result.total.ms,serverCount:result.total.servers,trackCount:result.total.tracks,servers:result.servers.map(r=>({name:this.client.guilds.cache.get(r.id)?.name??'Server tidak tersedia',ms:r.ms})),friends,tracks:result.tracks.map(t=>({name:t.title,detail:t.author,ms:t.ms})),...settings,theme:(i.options.getString('theme')??settings.theme) as 'red'|'purple'|'blue'});
   await i.editReply({components:[new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://manuk-profile.png').setDescription('Profil musik ManukAPP')),new TextDisplayBuilder().setContent('Profil pribadi · waktu terukur di voice saat musik aktif. Data mulai terkumpul setelah fitur profil dipasang; teman = pendengar yang berada bersama di voice.')],files:[new AttachmentBuilder(png,{name:'manuk-profile.png'})],allowedMentions:{parse:[]}});
+ }
+ private async profileSettings(i:ChatInputCommandInteraction){
+  const patch:Partial<ProfileSettings>={};
+  const theme=i.options.getString('theme'),background=i.options.getString('background'),accent=i.options.getString('accent'),bio=i.options.getString('bio');
+  if(theme)patch.theme=theme as ProfileSettings['theme'];if(background)patch.background=background as ProfileSettings['background'];
+  if(accent){if(!/^#[0-9a-f]{6}$/i.test(accent))throw new MusicError('Warna aksen harus hex 6 digit, contoh #a78bfa.');patch.accent=accent;}
+  if(bio!==null)patch.bio=bio;
+  const value=this.persistence.setProfileSettings(i.user.id,patch,i.options.getBoolean('reset')??false);
+  await i.editReply({components:[musicNotice(`## Profil tersimpan\nTema: **${value.theme}** · Latar: **${value.background}**\nAksen: ${value.accent??'mengikuti tema'}\nBio: ${escapeMarkdown(value.bio)||'belum diisi'}\n\nLihat hasilnya dengan /profile. /profileset reset:true mengembalikan tampilan default.`)],allowedMentions:{parse:[]}});
+ }
+ private async leaderboard(i:ChatInputCommandInteraction){
+  const type=(i.options.getString('type')??'listeners') as 'listeners'|'tracks'|'artists';
+  if(!['listeners','tracks','artists'].includes(type))throw new MusicError('Jenis leaderboard tidak dikenal.');
+  const rows=this.persistence.leaderboard(i.guildId!,type);
+  const labels={listeners:'Pendengar',tracks:'Lagu',artists:'Artis'};
+  const lines=await Promise.all(rows.map(async(row,n)=>{
+   let name=row.name;
+   if(type==='listeners'){const user=await this.client.users.fetch(row.name).catch(()=>undefined);name=user?.globalName??user?.username??'Pengguna tidak tersedia';}
+   return `${n+1}. **${escapeMarkdown(name).slice(0,100)}**${row.detail?' — '+escapeMarkdown(row.detail).slice(0,70):''} · ${listeningTime(row.ms)}`;
+  }));
+  await i.editReply({components:[musicNotice(`## TOP ${labels[type].toUpperCase()} · SERVER INI\n${lines.join('\n')||'Belum ada data. Putar musik dan dengarkan bersama di voice dulu.'}\n\n-# Sepanjang data tersimpan. ${type==='listeners'?'Waktu mendengar anggota sejak fitur profil aktif.':'Durasi pemutaran bot sejak V3, bukan jumlah pendengar.'}`)],allowedMentions:{parse:[]}});
  }
  private armEmpty(guild:string,s:MusicSession){
   const old=this.empty.get(guild);if(old)clearTimeout(old);this.empty.delete(guild);
@@ -242,6 +263,8 @@ export class Music {
  async handle(i:ChatInputCommandInteraction){
   if(!i.inGuild()||!i.guild)throw new MusicError('Command musik hanya bisa dipakai di server.');
   if(i.commandName==='profile'){await this.profile(i);return;}
+  if(i.commandName==='profileset'){await this.profileSettings(i);return;}
+  if(i.commandName==='top'){await this.leaderboard(i);return;}
   await this.serial.run(i.guildId,async()=>{
    const guild=i.guild!;
     const c=i.commandName;
@@ -446,5 +469,57 @@ export class Music {
    await this.refreshPanel(panel.guildId);
   }catch{await button.followUp({content:'Aksi tidak dapat dijalankan. Coba gunakan command musik lagi.',flags:MessageFlags.Ephemeral}).catch(()=>{});}
  }
+ /** Read-only snapshot for the local authenticated monitoring API. */
+ monitoringSnapshot(guildId?: string) {
+  const active = [...this.sessions.entries()].filter(([id, session]) =>
+   !session.closed && (!guildId || id === guildId)
+  );
+  const session = guildId
+   ? this.sessions.get(guildId)
+   : active[0]?.[1];
+  const current = session && !session.closed ? session.current : undefined;
+  const info = current?.info;
+  return {
+   active_sessions: active.length,
+   // Diagnostic only: identify which guild actually owns each live session.
+   diagnostics: {
+    requested_guild_id: guildId ?? null,
+    total_registered_sessions: this.sessions.size,
+    sessions: [...this.sessions.entries()].map(([id, entry]) => ({
+     guild_id: id,
+     closed: entry.closed,
+     has_current: Boolean(entry.current),
+     queue_length: entry.queue.length,
+     voice_channel_id: entry.channelId,
+    })),
+   },
+   queue_length: session && !session.closed ? session.queue.length : 0,
+   queue: session && !session.closed ? session.queue.slice(0, 10).map(track => ({
+    title: track.info.title,
+    artist: track.info.author,
+    duration_ms: track.info.length,
+   })) : [],
+   paused: current ? Boolean(session?.paused) : null,
+   voice_channel_id: session && !session.closed ? session.channelId : null,
+   now_playing: info ? {
+    title: info.title,
+    artist: info.author,
+    source: info.sourceName,
+    url: info.uri ?? null,
+    duration_ms: info.length,
+    position_ms: session?.position ?? 0,
+    is_stream: info.isStream,
+   } : null,
+  };
+ }
+
+ lavalinkSnapshot() {
+  const connected = this.shoukaku.getIdealNode() !== undefined;
+  return {
+   connected,
+   status: connected ? 'Connected' : 'Disconnected',
+  };
+ }
+
  async shutdown(){this.shuttingDown=true;for(const guild of this.panels.keys())this.clearPanel(guild);for(const [guild,s] of this.sessions)this.save(guild,s);await Promise.allSettled([...this.sessions.keys()].map(id=>this.dispose(id)));this.persistence.close();}
 }

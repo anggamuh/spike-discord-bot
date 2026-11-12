@@ -1,19 +1,35 @@
+import {helpView} from './help.js';
+import {DatabaseBackups} from './database-backup.js';
 import {reportMusicError} from './music-diagnostics.js';
 import {Music,musicNames} from './music.js';
 import {MusicError} from './music-core.js';
 import {musicNotice,musicV2Flags} from './music-ui.js';
 import {Client,Events,GatewayIntentBits,EmbedBuilder,MessageFlags,escapeMarkdown} from 'discord.js';
 import {Provider} from './provider.js';import {Store} from './store.js';import {summarize} from './domain.js';import {required,mode} from './config.js';
+import { startMonitoringApi } from './api/server.js';
 const dataMode=mode();
 const provider=new Provider(dataMode,process.env.HENRIK_API_KEY);
 const store=new Store(process.env.DATABASE_PATH??'./data/spike.sqlite');
 const client=new Client({intents:[GatewayIntentBits.Guilds,GatewayIntentBits.GuildVoiceStates],allowedMentions:{parse:[]}});
 const music=process.env.MUSIC_ENABLED==='false'?undefined:new Music(client);
+const backups=new DatabaseBackups(process.env.DATABASE_PATH??'./data/spike.sqlite');
+backups.start();
 const cooldown=new Map<string,number>(),busy=new Set<string>();
 const clean=(s:string)=>escapeMarkdown(s).slice(0,150);
 const base=()=>new EmbedBuilder().setColor(0xff4655).setFooter({text:dataMode==='demo'?'SPIKE • DATA DEMO, bukan statistik asli':'SPIKE • HenrikDev (tidak resmi) • cache maks. 60 detik'}).setTimestamp();
-client.once(Events.ClientReady,()=>console.log(`ManukAPP v3.1.0 online • mode ${dataMode}. Gunakan /help.`));
+// Monitoring API is started once per process, after the Discord gateway is ready.
+let monitoringServer: import('node:http').Server | undefined;
+client.once(Events.ClientReady, () => {
+    console.log(`ManukAPP v3.2.0 online • mode ${dataMode}. Gunakan /help.`);
+    try {
+        monitoringServer = startMonitoringApi(client, music);
+    } catch (error) {
+        // Do not take down the music bot when monitoring is misconfigured.
+        console.error('[ManukAPI] Gagal memulai monitoring:', error);
+    }
+});
 client.on(Events.InteractionCreate,async i=>{
+ if(i.isStringSelectMenu()&&i.customId==='help:category'){await i.update(helpView(i.values[0])).catch(()=>{});return;}
  if(i.isAutocomplete()){if(music&&musicNames.has(i.commandName))await music.autocomplete(i);else await i.respond([]).catch(()=>{});return;}
  if(!i.isChatInputCommand())return;
  const uid=i.user.id;
@@ -28,7 +44,7 @@ client.on(Events.InteractionCreate,async i=>{
  }
  await i.deferReply({flags:MessageFlags.Ephemeral});
  if(c==='ping'){await i.editReply(`Pong! Gateway ${Math.max(0,client.ws.ping)} ms • ${dataMode}`);return;}
- if(c==='help'){await i.editReply({embeds:[base().setTitle('SPIKE / Play. Track. Improve.').setDescription('Musik: masuk voice lalu `/play query:judul lagu`.\nKontrol: /skip /pause /resume /queue /stop /nowplaying /volume.\nTambahan: /playnext /seek /replay /fairqueue /savequeue.\nAutoplay: /autoplay mode:on style:artist atau mix.\nAdmin: /musicsettings · Diagnostik: /status.\nV3: /247 mode:on untuk standby; /wrapped untuk statistik bulanan WIB.\nProfil gambar: /profile (privat), tema red/purple/blue.\nMusik tidak memerlukan link Riot atau API HenrikDev.\n\nValorant:\n1. `/link riot_id:Angga#IDN setuju:True region:ap`\n2. `/rank`, `/stats`, atau `/matches`\n3. `/unlink` untuk menghapus ID.\n\nJawaban command hanya terlihat olehmu. Panel publik diperbarui di channel request atau channel tetap yang dikonfigurasi. /link menyimpan ID pilihanmu, bukan login atau verifikasi Riot. Bot tidak meminta password Riot. Mode demo hanya mendukung Angga#IDN. Mode live mengirim Riot ID ke HenrikDev. Statistik dihitung dari sampel pertandingan, bukan lifetime.')]});return;}
+ if(c==='help'){await i.editReply(helpView(i.options.getString('category')??'music'));return;}
  if(c==='unlink'){store.remove(uid);await i.editReply('Riot ID tersimpan dihapus dari semua mode. Cache statistik provider kedaluwarsa maksimal 60 detik.');return;}
  if(c==='link'){
  if(!i.options.getBoolean('setuju',true))throw new Error('Penyimpanan dibatalkan. Persetujuan diperlukan untuk mengambil statistik dan menyimpan Riot ID.');
@@ -45,6 +61,28 @@ client.on(Events.InteractionCreate,async i=>{
  finally{busy.delete(uid);}
 });
 const timer=setInterval(()=>{for(const [key,until]of cooldown)if(until<Date.now())cooldown.delete(key);},60000);timer.unref();
-for(const signal of ['SIGINT','SIGTERM'] as const)process.on(signal,async()=>{await music?.shutdown();client.destroy();store.close();process.exit(0);});
+let isShuttingDown = false;
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.once(signal, async () => {
+        if (isShuttingDown) return;
+        isShuttingDown = true;
+        try {
+            if (monitoringServer) {
+                await new Promise<void>((resolve) => {
+                    monitoringServer!.close(() => resolve());
+                });
+            }
+            await backups.stop();
+            await music?.shutdown();
+        } catch (error) {
+            console.error('Gagal menghentikan ManukAPP dengan bersih:', error);
+            process.exitCode = 1;
+        } finally {
+            client.destroy();
+            store.close();
+            process.exit();
+        }
+    });
+}
 client.on(Events.Error,()=>console.error('Koneksi Discord bermasalah. Periksa jaringan.'));
-client.login(required('DISCORD_TOKEN')).catch(()=>{console.error('Login bot gagal. Periksa DISCORD_TOKEN dan jaringan.');store.close();process.exitCode=1;client.destroy();});
+client.login(required('DISCORD_TOKEN')).catch(async()=>{await backups.stop();console.error('Login bot gagal. Periksa DISCORD_TOKEN dan jaringan.');store.close();process.exitCode=1;client.destroy();});

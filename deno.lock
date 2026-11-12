@@ -118,6 +118,7 @@
       "dependencies": [
         "npm:@types/node@24",
         "npm:discord.js@14.22.1",
+        "npm:sharp@~0.35.5",
         "npm:shoukaku@4.3.0",
         "npm:tsx@^4.20.5",
         "npm:typescript@^5.9.2"
