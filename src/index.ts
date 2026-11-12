@@ -21,6 +21,7 @@ import { required, mode } from './config.js';
 import type { Server } from 'node:http';
 import { startMonitoringApi } from './api/server.js';
 import { startAnnouncementsApi } from './api/announcements.js';
+import { startControlV3Api } from './api/control-v3.js';
 
 // ======================================================
 // INITIALIZATION
@@ -79,6 +80,7 @@ const base = () =>
 
 let monitoringServer: Server | undefined;
 let announcementsServer: Server | undefined;
+let controlV3Server: Server | undefined;
 
 function reportApiError(name: string, error: Error): void {
     console.error(
@@ -123,6 +125,12 @@ client.once(Events.ClientReady, () => {
             error
         );
     }
+
+    // Hollowfang V3 API: port 3212 (terpisah dari monitoring & announcements)
+    void startControlV3Api(client).then(server => {
+        controlV3Server = server;
+        server.on('error', error => reportApiError('HollowfangV3', error));
+    }).catch(error => console.error('[HollowfangV3] API gagal:', error instanceof Error ? error.name : 'Unknown'));
 });
 
 // ======================================================
@@ -451,6 +459,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
             await Promise.allSettled([
                 closeApiServer(monitoringServer),
                 closeApiServer(announcementsServer),
+                closeApiServer(controlV3Server),
             ]);
 
             await backups.stop();

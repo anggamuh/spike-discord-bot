@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
+import { handleDirectoryRequest, readApprovedChannels } from './announcement-directory.js';
 import {
     ChannelType,
     ContainerBuilder,
@@ -37,13 +38,10 @@ const validImageUrl = (url: string): boolean => {
 export function startAnnouncementsApi(client: Client): Server {
     const secret = process.env.MANUK_API_TOKEN ?? '';
     const guildId = process.env.MANUK_MONITOR_GUILD_ID ?? '';
-    const allowedChannels = new Set(
-        (process.env.MANUK_ANNOUNCE_CHANNEL_IDS ?? '')
-            .split(',').map(value => value.trim()).filter(Boolean)
-    );
+    
     const port = Number(process.env.MANUK_ANNOUNCE_API_PORT ?? 3211);
 
-    if (secret.length < 32 || !/^\d{15,22}$/.test(guildId) || !allowedChannels.size) {
+    if (secret.length < 32 || !/^\d{15,22}$/.test(guildId)) {
         throw new Error('Periksa MANUK_API_TOKEN, MANUK_MONITOR_GUILD_ID, MANUK_ANNOUNCE_CHANNEL_IDS');
     }
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -62,6 +60,7 @@ export function startAnnouncementsApi(client: Client): Server {
         if (!tokenMatches(req.headers.authorization, secret)) {
             return reply(401, { error: 'Unauthorized' });
         }
+        if (await handleDirectoryRequest(req, client, guildId, reply)) return;
         if (req.method !== 'POST' || req.url !== '/api/announcements') {
             return reply(404, { error: 'Not Found' });
         }
@@ -99,7 +98,7 @@ export function startAnnouncementsApi(client: Client): Server {
             const imagePosition2 = data.image_position_2 ?? 'bottom';
 
             if (
-                typeof channelId !== 'string' || !allowedChannels.has(channelId) ||
+                typeof channelId !== 'string' || !readApprovedChannels(guildId).has(channelId) ||
                 typeof title !== 'string' || !title.trim() || title.length > 256 ||
                 typeof description !== 'string' || !description.trim() || description.length > 4000 ||
                 typeof content !== 'string' || content.length > 1800 ||
