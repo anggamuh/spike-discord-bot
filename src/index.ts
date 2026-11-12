@@ -1,3 +1,4 @@
+import { startScamGuard } from './security/scam-guard.js';
 import { helpView } from './help.js';
 import { DatabaseBackups } from './database-backup.js';
 import { reportMusicError } from './music-diagnostics.js';
@@ -21,6 +22,7 @@ import { required, mode } from './config.js';
 import type { Server } from 'node:http';
 import { startMonitoringApi } from './api/server.js';
 import { startAnnouncementsApi } from './api/announcements.js';
+import { startCommunityV4 } from './api/community-v4.js';
 import { startControlV3Api } from './api/control-v3.js';
 
 // ======================================================
@@ -42,6 +44,8 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildVoiceStates,
+        ...(process.env.HF_ENABLE_MEMBER_EVENTS === 'true' ? [GatewayIntentBits.GuildMembers] : []),
+        ...((process.env.HF_ENABLE_AUTOMOD === 'true' || process.env.HF_SCAM_GUARD_MODE === 'log' || process.env.HF_SCAM_GUARD_MODE === 'delete') ? [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] : []),
     ],
     allowedMentions: {
         parse: [],
@@ -81,6 +85,7 @@ const base = () =>
 let monitoringServer: Server | undefined;
 let announcementsServer: Server | undefined;
 let controlV3Server: Server | undefined;
+let communityV4Server: Server | undefined;
 
 function reportApiError(name: string, error: Error): void {
     console.error(
@@ -94,6 +99,7 @@ function reportApiError(name: string, error: Error): void {
 // ======================================================
 
 client.once(Events.ClientReady, () => {
+    startScamGuard(client);
     console.log(
         `ManukAPP v3.2.0 online • mode ${dataMode}. Gunakan /help.`
     );
@@ -134,6 +140,15 @@ client.once(Events.ClientReady, () => {
 });
 
 // ======================================================
+// HOLLOWFANG V4 COMMUNITY â€” independent from music and announcements.
+client.once(Events.ClientReady, () => {
+    startScamGuard(client);
+    void startCommunityV4(client).then(server => {
+        communityV4Server = server;
+        server.on('error', e => reportApiError('CommunityV4', e));
+    }).catch(e => console.error('[CommunityV4] API failed:', e instanceof Error ? e.name : 'Unknown'));
+});
+
 // DISCORD INTERACTIONS
 // ======================================================
 
@@ -460,6 +475,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
                 closeApiServer(monitoringServer),
                 closeApiServer(announcementsServer),
                 closeApiServer(controlV3Server),
+                closeApiServer(communityV4Server),
             ]);
 
             await backups.stop();
