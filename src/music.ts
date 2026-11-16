@@ -113,7 +113,7 @@ export class Music {
   const friends=await Promise.all(result.friends.map(async row=>{const user=await this.client.users.fetch(row.id).catch(()=>undefined);return {name:user?.globalName??user?.username??'Pengguna tidak tersedia',ms:row.ms};}));
   const avatar=await discordAvatar(i.user.displayAvatarURL({extension:'png',size:256}));
   const png=await renderProfile({name:i.user.globalName??i.user.username,avatar,totalMs:result.total.ms,serverCount:result.total.servers,trackCount:result.total.tracks,servers:result.servers.map(r=>({name:this.client.guilds.cache.get(r.id)?.name??'Server tidak tersedia',ms:r.ms})),friends,tracks:result.tracks.map(t=>({name:t.title,detail:t.author,ms:t.ms})),...settings,theme:(i.options.getString('theme')??settings.theme) as 'red'|'purple'|'blue'});
-  await i.editReply({components:[new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://manuk-profile.png').setDescription('Hollowfang • kartu profil pendengar')),new TextDisplayBuilder().setContent('-# HOLLOWFANG  /  LISTENER DOSSIER  ·  Statistik dari aktivitas mendengar di voice. Sesuaikan kartu dengan `/profileset`.')],files:[new AttachmentBuilder(png,{name:'manuk-profile.png'})],allowedMentions:{parse:[]}});
+  await i.editReply({components:[new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://manuk-profile.png').setDescription('Hollowfang member profile'))],files:[new AttachmentBuilder(png,{name:'manuk-profile.png'})],allowedMentions:{parse:[]}});
  }
  private async profileSettings(i:ChatInputCommandInteraction){
   const patch:Partial<ProfileSettings>={};
