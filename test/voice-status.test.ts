@@ -82,6 +82,24 @@ test('restart takeover is disabled by default and for channels not allowlisted',
  await f.manager.shutdown();
 });
 
+test('late voice readiness permits one-time takeover after state creation',async()=>{
+ let ready=false;
+ const f=fixture({allowInitialTakeover:()=>ready});
+ f.manager.observe('v','previous song — Artist');
+ // State is created before the bot has joined/started playback.
+ await f.manager.update('g','v','song before readiness');
+ assert.deepEqual(f.calls,[]);
+ ready=true;
+ await f.manager.update('g','v','current song — Artist');
+ assert.deepEqual(f.calls,[['v','current song — Artist']]);
+ await f.manager.update('g','v','next song — Artist');
+ assert.deepEqual(f.calls,[['v','current song — Artist'],['v','next song — Artist']]);
+ f.manager.observe('v','member edited status');
+ await f.manager.update('g','v','another song');
+ assert.equal(f.calls.length,2);
+ await f.manager.shutdown();
+});
+
 test('gateway acknowledgement before HTTP response preserves ownership; manual edit in flight wins',async()=>{
  let manager!:VoiceStatusManager;
  const f=fixture({put:async(c,s)=>{manager.observe(c,s);}});manager=f.manager;
