@@ -195,8 +195,9 @@ client.on(Events.InteractionCreate, async (i) => {
 
         // Music Commands
         if (musicNames.has(c)) {
+            // /profile is a shareable public member card; settings and controls stay private.
             await i.reply({
-                flags: MessageFlags.Ephemeral | musicV2Flags,
+                flags: (c === 'profile' ? 0 : MessageFlags.Ephemeral) | musicV2Flags,
                 components: [
                     musicNotice('Menyiapkan pemutar...'),
                 ],
