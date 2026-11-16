@@ -27,6 +27,9 @@ export class VoiceStatusManager {
  private observations = new Map<string, string | null>();
  private closed = false;
  constructor(private options: VoiceStatusOptions) {}
+ hasObservation(channel: string): boolean {
+  return this.observations.has(channel);
+ }
  observe(channel: string, status: string | null) {
   if (this.options.enabled === false || this.closed) return;
   this.observations.set(channel, status);
