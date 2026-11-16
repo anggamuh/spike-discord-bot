@@ -5,6 +5,8 @@ export type VoiceStatusOptions = {
  canWrite: (guildId: string, channelId: string, clearing: boolean) => boolean;
  onError?: (error: unknown) => void;
  onDebug?: (message: string) => void;
+ /** Explicitly authorized initial takeover for this dedicated music voice channel. */
+ allowInitialTakeover?: (guildId: string, channelId: string) => boolean;
  enabled?: boolean;
  debounceMs?: number;
  retryMs?: number;
@@ -14,6 +16,7 @@ type State = {
  desired?: string | null; sending?: string | null; revision: number;
  timer?: NodeJS.Timeout; running?: Promise<void>; retryAt: number;
  waiters: Array<() => void>;
+ initialTakeoverAvailable: boolean;
 };
 
 export function musicVoiceStatus(track: {info: {title: string; author: string}}, paused: boolean) {
@@ -39,6 +42,8 @@ export class VoiceStatusManager {
   this.observations.set(channel, status);
   const state = this.states.get(channel);
   if (!state) return;
+  // A later manual edit must never be reclaimed by startup takeover.
+  if (state.observed !== undefined && state.observed !== status) state.initialTakeoverAvailable = false;
   state.observed = status;
   // Gateway acknowledgement can precede the HTTP response.
   if (status !== state.sending && status !== state.managed) {
@@ -58,7 +63,7 @@ export class VoiceStatusManager {
   if (this.options.enabled === false || this.closed) return Promise.resolve();
   let state = this.states.get(channel);
   if (!state) {
-   state = {guild, channel, observed: this.observations.get(channel), revision: 0, retryAt: 0, waiters: []};
+   state = {guild, channel, observed: this.observations.get(channel), revision: 0, retryAt: 0, waiters: [], initialTakeoverAvailable: this.options.allowInitialTakeover?.(guild, channel) === true};
    this.states.set(channel, state);
   }
   state.desired = desired;
@@ -88,6 +93,15 @@ export class VoiceStatusManager {
   // Unknown initial status is deliberately not assumed empty. CHANNEL_INFO
   // supplies the initial snapshot; a known manual status always wins.
   if (state.observed === undefined) { this.options.onDebug?.('skip: no CHANNEL_INFO observation channel='+state.channel); return; }
+  // A restarted bot cannot prove ownership of an existing Discord status.
+  // Only an explicitly allowlisted channel may be adopted once per process.
+  if (state.initialTakeoverAvailable) {
+   state.initialTakeoverAvailable = false;
+   if (desired !== null && state.managed === undefined && state.observed !== null) {
+    state.managed = state.observed;
+    this.options.onDebug?.('startup takeover authorized channel='+state.channel);
+   }
+  }
   if (state.observed !== null && state.observed !== state.managed) { this.options.onDebug?.('skip: manual status preserved channel='+state.channel); return; }
   if (desired === null && state.managed === undefined || desired === state.observed) { this.options.onDebug?.('skip: status unchanged or not owned channel='+state.channel); return; }
   try {

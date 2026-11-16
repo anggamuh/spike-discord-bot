@@ -32,7 +32,9 @@ export class Music {
  private notificationChannels=new WeakMap<MusicSession,string>();
  private sessions=new Map<string,MusicSession>();private serial=new Serial();private idle=new Map<string,NodeJS.Timeout>();private empty=new Map<string,NodeJS.Timeout>();private panels=new Map<string,Panel>();private votes=new Map<string,Set<string>>();
  constructor(private client:Client){
+  const takeoverChannels=new Set((process.env.HF_VOICE_STATUS_TAKEOVER_CHANNEL_IDS??'').split(',').map(id=>id.trim()).filter(id=>/^\d{15,22}$/.test(id)));
   this.voiceStatus=new VoiceStatusManager({enabled:this.voiceStatusEnabled,
+   allowInitialTakeover:(_guild,channel)=>takeoverChannels.has(channel),
    put:(channel,status)=>client.rest.put(Routes.channelVoiceStatus(channel),{body:{status} satisfies RESTPutAPIChannelVoiceStatusJSONBody}),
    canWrite:(guild,channel,clearing)=>{
     const server=client.guilds.cache.get(guild),me=server?.members.me,voice=server?.channels.cache.get(channel);
