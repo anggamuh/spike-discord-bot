@@ -1,0 +1,79 @@
+server:
+  port: 2333
+  address: 127.0.0.1
+lavalink:
+  pluginsDir: "./plugins-managed"
+  plugins:
+    - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.8.3"
+      repository: "https://maven.lavalink.dev/releases"
+      snapshot: false
+    - dependency: "dev.lavalink.youtube:youtube-plugin:f45bbb7aebfcbc1c553769e04af6cd43afa8b7c3"
+      snapshot: true
+    - dependency: "com.github.Lochis.soundy:plugin:1.1.0"
+      repository: "https://jitpack.io"
+  server:
+    password: "${LAVALINK_SERVER_PASSWORD:manuk-local-only}"
+    sources:
+      youtube: false
+      soundcloud: false
+      bandcamp: true
+      twitch: false
+      vimeo: false
+      nico: false
+      http: false
+      local: false
+    playerUpdateInterval: 5
+    trackStuckThresholdMs: 10000
+    youtubePlaylistLoadLimit: 2
+plugins:
+  lavasrc:
+    providers:
+      - "scsearch:%QUERY%"
+    sources:
+      spotify: true
+      applemusic: false
+      deezer: false
+      yandexmusic: false
+      flowerytts: false
+      youtube: false
+      vkmusic: false
+      tidal: false
+      qobuz: false
+      ytdlp: false
+      jiosaavn: false
+    spotify:
+      clientId: "${SPOTIFY_CLIENT_ID:}"
+      clientSecret: "${SPOTIFY_CLIENT_SECRET:}"
+      countryCode: "ID"
+      playlistLoadLimit: 1
+      albumLoadLimit: 1
+      localFiles: false
+  soundy:
+    enabled: true
+  youtube:
+    enabled: true
+    allowSearch: true
+    allowDirectVideoIds: false
+    allowDirectPlaylistIds: false
+    clients:
+      - TV
+      - WEB
+      - MWEB
+      - ANDROID_VR
+      - TVHTML5_SIMPLY
+      - WEBEMBEDDED
+      - MUSIC
+    oauth:
+      enabled: true
+
+logging:
+  level:
+    root: INFO
+    lavalink: DEBUG
+    com.sedmelluq.discord.lavaplayer.tools.ExceptionTools: DEBUG
+    com.sedmelluq.discord.lavaplayer.source.soundcloud: DEBUG
+    dev.lavalink.youtube.http.YoutubeOauth2Handler: INFO
+    dev.lavalink.youtube.clients.skeleton.StreamingNonMusicClient: ERROR
+    dev.lavalink.youtube.http.YoutubeAccessTokenTracker: WARN
+  request:
+    enabled: false

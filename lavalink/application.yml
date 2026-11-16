@@ -3,14 +3,7 @@ server:
   address: 127.0.0.1
 lavalink:
   pluginsDir: "./plugins-managed"
-  plugins:
-    - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.8.3"
-      repository: "https://maven.lavalink.dev/releases"
-      snapshot: false
-    - dependency: "dev.lavalink.youtube:youtube-plugin:f45bbb7aebfcbc1c553769e04af6cd43afa8b7c3"
-      snapshot: true
-    - dependency: "com.github.Lochis.soundy:plugin:1.1.0"
-      repository: "https://jitpack.io"
+  plugins: []
   server:
     password: "${LAVALINK_SERVER_PASSWORD:manuk-local-only}"
     sources:

@@ -33,14 +33,15 @@ export class Serial {
 }
 export interface AudioPlayer {playTrack(options:{track:{encoded:string}}):Promise<unknown>;stopTrack():Promise<unknown>;setPaused(value:boolean):Promise<unknown>;seekTo?(position:number):Promise<unknown>}
 export class MusicSession {
+ onPlaybackChange?:()=>void;
  queue:Track[]=[];current?:Track;lastError='';closed=false;paused=false;loop:'off'|'song'|'queue'='off';autoplay=false;autoplayStyle:'artist'|'mix'='artist';fair=false;stay=false;
  private requestedAt=0;private lastAdvanceAt=0;private maxPosition=0;private startTimer?:NodeJS.Timeout;started=false;progressed=false;
  get position(){return this.maxPosition;}
  private clearStartTimer(){if(this.startTimer)clearTimeout(this.startTimer);this.startTimer=undefined;}
  private armStartTimer(encoded:string){this.clearStartTimer();if(!this.onStartTimeout||this.progressed||this.current?.encoded!==encoded)return;this.startTimer=setTimeout(()=>this.onStartTimeout?.(encoded),20000).unref();}
  private begin(track:Track){this.clearStartTimer();this.current=track;this.lastError='';this.requestedAt=this.clock();this.lastAdvanceAt=this.clock();this.maxPosition=0;this.started=false;this.progressed=false;this.paused=false;}
- async setPaused(value:boolean){await this.player.setPaused(value);this.paused=value;this.lastAdvanceAt=this.clock();}
- start(encoded:string){if(this.current?.encoded===encoded)this.started=true;}
+ async setPaused(value:boolean){await this.player.setPaused(value);this.paused=value;this.lastAdvanceAt=this.clock();this.onPlaybackChange?.();}
+ start(encoded:string){if(this.current?.encoded===encoded){this.started=true;this.onPlaybackChange?.();}}
  progress(position:number){if(!this.current||!this.started||!Number.isFinite(position))return false;const first=!this.progressed&&position>0;if(position>this.maxPosition)this.lastAdvanceAt=this.clock();this.maxPosition=Math.max(this.maxPosition,position);if(position>0){this.progressed=true;this.lastError='';this.clearStartTimer();}return first;}
  // Only a real playback position near the reported end can trigger this guard.
  endIsStalled(){
@@ -83,6 +84,7 @@ export class MusicSession {
    try{if(this.prepare){track=await this.prepare(track);if(this.closed)return;this.begin(track);}console.log(`[MUSIC PLAYBACK ATTEMPT] source=${track.info.sourceName} title=${track.info.title.slice(0,100)}`);await this.player.setPaused(false);await this.player.playTrack({track:{encoded:track.encoded}});this.armStartTimer(track.encoded);return;}catch(error){this.lastError=reportMusicError('PLAYBACK ERROR',error);if(await this.recover(track))return;this.current=undefined;failures++;}
   }
   if(!this.current&&failures)console.error(`[MUSIC QUEUE] ${failures} track playback request(s) failed; queue advanced after exhausting available tracks.`);
+  this.onPlaybackChange?.();
  }
  async end(reason:string,encoded?:string){
   if(this.closed||!this.current||(encoded&&encoded!==this.current.encoded))return;
@@ -107,6 +109,6 @@ export class MusicSession {
  }
  private async playAgain(track:Track){this.begin({...track,info:{...track.info,position:0}});await this.player.setPaused(false);await this.player.playTrack({track:{encoded:track.encoded}});this.armStartTimer(track.encoded);}
  async skip(){if(!this.current)throw new MusicError('Tidak ada lagu yang sedang diputar.');await this.player.stopTrack();await this.next();}
- async stop(){this.clearStartTimer();this.closed=true;this.queue=[];this.current=undefined;await this.player.stopTrack();}
+ async stop(){this.clearStartTimer();this.closed=true;this.queue=[];this.current=undefined;this.onPlaybackChange?.();await this.player.stopTrack();}
 }
 export function duration(ms:number,live=false){if(live)return 'LIVE';const sec=Math.floor(ms/1000);return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;}

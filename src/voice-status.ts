@@ -1,65 +1,116 @@
-import { Routes, type Client } from 'discord.js';
-
-/**
- * Discord Voice Channel Status (not the channel name or bot presence).
- * Keep a latest-value queue per voice channel so an old song cannot overwrite a new one.
- */
-type PendingStatus = {
-    desired: string | null;
-    applied: string | null | undefined;
-    failed: string | null | undefined;
-    running?: Promise<void>;
+// Restored from 14ed01d; ownership remains local to this process. A saved value
+// alone cannot prove ownership after a restart while another user edited it.
+export type VoiceStatusOptions = {
+ put: (channelId: string, status: string | null) => Promise<unknown>;
+ canWrite: (guildId: string, channelId: string, clearing: boolean) => boolean;
+ onError?: (error: unknown) => void;
+ enabled?: boolean;
+ debounceMs?: number;
+ retryMs?: number;
+};
+type State = {
+ guild: string; channel: string; observed?: string | null; managed?: string;
+ desired?: string | null; sending?: string | null; revision: number;
+ timer?: NodeJS.Timeout; running?: Promise<void>; retryAt: number;
+ waiters: Array<() => void>;
 };
 
-export function voiceStatusText(title: string, artist?: string): string {
-    const clean = (value: string) => value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
-    const song = clean(title) || 'Unknown track';
-    const by = artist ? clean(artist) : '';
-    const value = `🎵 ${song}${by ? ` — ${by}` : ''}`;
-    return Array.from(value).slice(0, 180).join('');
+export function musicVoiceStatus(track: {info: {title: string; author: string}}, paused: boolean) {
+ const clean = (s: string) => s.replace(/[\r\n\t]/g, ' ').trim();
+ return Array.from(`${paused ? '⏸️ ' : ' '}${clean(track.info.title)} — ${clean(track.info.author)}`).slice(0, 500).join('');
 }
 
-export class VoiceStatusSync {
-    private readonly pending = new Map<string, PendingStatus>();
-
-    constructor(
-        private readonly send: (channelId: string, status: string | null) => Promise<unknown>,
-        private readonly warn: (message: string) => void = message => console.warn(message),
-    ) {}
-
-    static fromClient(client: Client): VoiceStatusSync {
-        return new VoiceStatusSync((id, status) =>
-            client.rest.put(Routes.channelVoiceStatus(id), { body: { status } }),
-        );
-    }
-
-    async set(channelId: string, status: string | null): Promise<void> {
-        let entry = this.pending.get(channelId);
-        if (!entry) {
-            entry = { desired: status, applied: undefined, failed: undefined };
-            this.pending.set(channelId, entry);
-        }
-        entry.desired = status;
-        if (!entry.running) {
-            entry.running = this.flush(channelId, entry).finally(() => {
-                entry.running = undefined;
-            });
-        }
-        await entry.running;
-    }
-
-    private async flush(channelId: string, entry: PendingStatus): Promise<void> {
-        while (entry.applied !== entry.desired && entry.failed !== entry.desired) {
-            const status = entry.desired;
-            try {
-                await this.send(channelId, status);
-                entry.applied = status;
-                entry.failed = undefined;
-            } catch (error) {
-                entry.failed = status;
-                const detail = error instanceof Error ? error.message : String(error);
-                this.warn(`[VOICE STATUS] Gagal update channel ${channelId}: ${detail}. Periksa izin Set Voice Channel Status.`);
-            }
-        }
-    }
+/** Coalesced, serialized writes per channel; only successful writes are owned. */
+export class VoiceStatusManager {
+ private states = new Map<string, State>();
+ private observations = new Map<string, string | null>();
+ private closed = false;
+ constructor(private options: VoiceStatusOptions) {}
+ observe(channel: string, status: string | null) {
+  if (this.options.enabled === false || this.closed) return;
+  this.observations.set(channel, status);
+  const state = this.states.get(channel);
+  if (!state) return;
+  state.observed = status;
+  // Gateway acknowledgement can precede the HTTP response.
+  if (status !== state.sending && status !== state.managed) {
+   state.revision++;
+   state.managed = undefined;
+  }
+  if (state.desired !== undefined) this.schedule(state);
+ }
+ update(guild: string, channel: string, status: string) {
+  return this.request(guild, channel, Array.from(status).slice(0, 500).join(''));
+ }
+ clear(guild: string, channel: string) {
+  if (!this.states.has(channel)) return Promise.resolve();
+  return this.request(guild, channel, null);
+ }
+ private request(guild: string, channel: string, desired: string | null) {
+  if (this.options.enabled === false || this.closed) return Promise.resolve();
+  let state = this.states.get(channel);
+  if (!state) {
+   state = {guild, channel, observed: this.observations.get(channel), revision: 0, retryAt: 0, waiters: []};
+   this.states.set(channel, state);
+  }
+  state.desired = desired;
+  if(state.retryAt > Date.now()){this.schedule(state);return Promise.resolve();}
+  const done = new Promise<void>(resolve => state!.waiters.push(resolve));
+  this.schedule(state);
+  return done;
+ }
+ private schedule(state: State) {
+  if (this.closed || state.timer || state.running) return;
+  state.timer = setTimeout(() => {
+   state.timer = undefined;
+   const waiters=state.waiters.splice(0);
+   state.running = this.commit(state).finally(() => {
+    state.running = undefined;
+    for (const resolve of waiters) resolve();
+    if (state.desired !== undefined) this.schedule(state);
+   });
+  }, Math.max(this.options.debounceMs ?? 100, state.retryAt - Date.now()));
+  // Keep normal awaited work alive; background retries must not keep shutdown alive.
+  if (state.retryAt > Date.now()) state.timer.unref();
+ }
+ private async commit(state: State) {
+  const desired = state.desired;
+  state.desired = undefined;
+  if (desired === undefined) return;
+  // Unknown initial status is deliberately not assumed empty. CHANNEL_INFO
+  // supplies the initial snapshot; a known manual status always wins.
+  if (state.observed === undefined || (state.observed !== null && state.observed !== state.managed)) return;
+  if (desired === null && state.managed === undefined || desired === state.observed) return;
+  try {
+   if (!this.options.canWrite(state.guild, state.channel, desired === null)) {
+    throw Object.assign(new Error('Voice status: unsupported channel, disconnected, or missing Set Voice Channel Status / Manage Channels permission.'), {code: 'VOICE_STATUS_UNAVAILABLE'});
+   }
+   const revision = state.revision;
+   state.sending = desired;
+   await this.options.put(state.channel, desired);
+   if (revision === state.revision) {
+    state.observed = desired;
+    state.managed = desired ?? undefined;
+    this.observations.set(state.channel, desired);
+   }
+   state.retryAt = 0;
+  } catch (error) {
+   this.options.onError?.(error);
+   const retry = Number((error as {retry_after?: number})?.retry_after);
+   state.retryAt = Date.now() + Math.max(this.options.retryMs ?? 60_000, Number.isFinite(retry) ? retry * 1000 : 0);
+   // Retry cleanup even after a music session has ended. Newer desired state wins.
+   if(state.desired === undefined) state.desired = desired;
+  } finally {
+   state.sending = undefined;
+  }
+ }
+ async shutdown() {
+  this.closed = true;
+  for (const state of this.states.values()) {
+   if (state.timer) clearTimeout(state.timer);
+   for (const resolve of state.waiters.splice(0)) resolve();
+  }
+  await Promise.allSettled([...this.states.values()].map(s => s.running));
+  this.states.clear(); this.observations.clear();
+ }
 }
