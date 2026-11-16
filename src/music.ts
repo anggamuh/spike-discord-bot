@@ -1,4 +1,6 @@
 import {renderProfile,discordAvatar,listeningTime} from './music-profile.js';
+import {VoiceStatusManager,musicVoiceStatus} from './voice-status.js';
+import {Routes,GatewayOpcodes,type RESTPutAPIChannelVoiceStatusJSONBody} from 'discord.js';
 import {PlaybackMeter,monthKey,validMonth} from './music-meter.js';
 import {parsePosition,type MusicPreferences} from './music-options.js';
 import {Lyrics,lyricPages} from './music-lyrics.js';
@@ -15,6 +17,8 @@ const boundedInteger=(name:string,fallback:number,min:number,max:number)=>{const
 type Panel={interaction:ChatInputCommandInteraction|MessageComponentInteraction;ownerId:string;guildId:string;session:MusicSession;mode:'player'|'queue';page:number;stop:()=>void;timer?:NodeJS.Timeout};
 export class Music {
  readonly shoukaku:Shoukaku;
+ private voiceStatus:VoiceStatusManager;
+ private voiceStatusEnabled=process.env.HF_VOICE_MUSIC_STATUS?.trim().toLowerCase()!=='false';
  private profileAudience=new WeakMap<MusicSession,string[]>();
  private meter=new PlaybackMeter();private shuttingDown=false;
  private persistence=new MusicPersistence(process.env.DATABASE_PATH??'./data/spike.sqlite');
@@ -25,6 +29,22 @@ export class Music {
  private notificationChannels=new WeakMap<MusicSession,string>();
  private sessions=new Map<string,MusicSession>();private serial=new Serial();private idle=new Map<string,NodeJS.Timeout>();private empty=new Map<string,NodeJS.Timeout>();private panels=new Map<string,Panel>();private votes=new Map<string,Set<string>>();
  constructor(private client:Client){
+  this.voiceStatus=new VoiceStatusManager({enabled:this.voiceStatusEnabled,
+   put:(channel,status)=>client.rest.put(Routes.channelVoiceStatus(channel),{body:{status} satisfies RESTPutAPIChannelVoiceStatusJSONBody}),
+   canWrite:(guild,channel,clearing)=>{
+    const server=client.guilds.cache.get(guild),me=server?.members.me,voice=server?.channels.cache.get(channel);
+    if(!me||voice?.type!==ChannelType.GuildVoice)return false;
+    const permissions=voice.permissionsFor(me);
+    return permissions.has(PermissionFlagsBits.SetVoiceChannelStatus)&&(me.voice.channelId===channel||(clearing&&permissions.has(PermissionFlagsBits.ManageChannels)));
+   },onError:error=>{reportMusicError('VOICE STATUS',error);}});
+  client.on(Events.Raw,packet=>{
+   if(!this.voiceStatusEnabled)return;
+   if(packet.t==='VOICE_CHANNEL_STATUS_UPDATE')this.voiceStatus.observe(packet.d.id,packet.d.status);
+   if(packet.t==='CHANNEL_INFO'){
+    for(const channel of packet.d.channels)if(channel.status!==undefined)this.voiceStatus.observe(channel.id,channel.status);
+    this.syncVoiceStatus(packet.d.guild_id);
+   }
+  });
   this.shoukaku=new Shoukaku(new Connectors.DiscordJS(client),[{name:'local',url:process.env.LAVALINK_URL??'127.0.0.1:2333',auth:process.env.LAVALINK_PASSWORD??'manuk-local-only',secure:process.env.LAVALINK_SECURE==='true'}],{resume:false,reconnectTries:5,reconnectInterval:5,restTimeout:15,voiceConnectionTimeout:20});
   this.shoukaku.on('ready',()=>{console.log('Lavalink tersambung. Musik siap menerima command.');void this.restoreStandby();});
   client.once(Events.ClientReady,()=>{void this.restoreStandby();});
@@ -35,9 +55,26 @@ export class Music {
    const guild=state.guild.id,s=this.sessions.get(guild);if(!s)return;
    if(old.channelId===s.channelId||state.channelId===s.channelId)this.profileAudience.delete(s);
    if(old.channelId===s.channelId&&state.channelId!==s.channelId)this.votes.get(guild)?.delete(state.id);
-   if(state.id===client.user?.id&&state.channelId!==s.channelId){void this.serial.run(guild,()=>this.dispose(guild)).catch(()=>{});return;}
+   if(state.id===client.user?.id&&state.channelId!==s.channelId){
+    if(!state.channelId){void this.serial.run(guild,()=>this.dispose(guild)).catch(()=>{});return;}
+    const previous=s.channelId;s.channelId=state.channelId;
+    void this.voiceStatus.clear(guild,previous);
+    if(s.stay)this.persistence.setPreferences(guild,{stayVoice:s.channelId});
+    this.requestVoiceStatus(guild);this.syncVoiceStatus(guild);
+   }
    this.armEmpty(guild,s);
   });
+ }
+ private requestVoiceStatus(guildId:string){
+  if(!this.voiceStatusEnabled)return;
+  this.client.guilds.cache.get(guildId)?.shard.send({op:GatewayOpcodes.RequestChannelInfo,d:{guild_id:guildId,fields:['status']}});
+ }
+ private syncVoiceStatus(guild:string){
+  if(!this.voiceStatusEnabled)return;
+  const s=this.sessions.get(guild);if(!s)return;
+  if(s.closed||!s.current){void this.voiceStatus.clear(guild,s.channelId);return;}
+  if(!s.started||this.client.guilds.cache.get(guild)?.members.me?.voice.channelId!==s.channelId)return;
+  void this.voiceStatus.update(guild,s.channelId,musicVoiceStatus(s.current,s.paused));
  }
  private listeners(s:MusicSession){const channel=this.client.channels.cache.get(s.channelId);if(!channel?.isVoiceBased())return [];return [...channel.members.values()].filter(m=>!m.user.bot&&!m.voice.deaf&&!m.voice.suppress).map(m=>m.id);}
  private recordAudience(guild:string,s:MusicSession,ms:number){
@@ -93,7 +130,7 @@ export class Music {
    this.save(guildId,s);await this.refreshPublic(guildId,s);console.log('[MUSIC 247] Standby dipulihkan; /resume untuk antrean tersimpan.');
   }).catch(()=>console.warn('[MUSIC 247] Tidak dapat masuk voice tersimpan. Periksa izin dan channel; coba /247 mode:on.'));
  }
- private meterReset(s:MusicSession){if(s.current)this.meter.reset(s.current,s.position);this.profileAudience.delete(s);}
+ private meterReset(s:MusicSession){for(const [guild,session] of this.sessions)if(session===s)this.syncVoiceStatus(guild);if(s.current)this.meter.reset(s.current,s.position);this.profileAudience.delete(s);}
  private async adjustVolume(s:MusicSession,delta:number){const player=s.player as Player;const volume=Math.max(0,Math.min(100,Math.round(player.volume)+delta));await player.setGlobalVolume(volume);return volume;}
  private save(guild:string,s:MusicSession){const saved=(t:Track):SavedTrack=>({identifier:t.info.identifier,title:t.info.title,author:t.info.author,url:t.info.uri??'',length:t.info.length,requester:String((t.pluginInfo as Record<string,unknown>|undefined)?.requester??'unknown'),playNext:Boolean((t.pluginInfo as any)?.playNext)});this.persistence.save(guild,{queue:s.queue.map(saved),current:s.current?saved(s.current):undefined,position:s.position,loop:s.loop,autoplay:s.autoplay,volume:(s.player as Player).volume,autoplayStyle:s.autoplayStyle,fair:s.fair});}
  private savedTrack(t:Track,requester:string):SavedTrack{return {identifier:t.info.identifier,title:t.info.title,author:t.info.author,url:t.info.uri??'',length:t.info.length,requester};}
@@ -110,7 +147,7 @@ export class Music {
   if(!channel?.isVoiceBased()||!me||!channel.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel,PermissionFlagsBits.Connect,PermissionFlagsBits.Speak]))throw new MusicError('Bot membutuhkan izin View Channel, Connect dan Speak.');
   const node=this.shoukaku.getIdealNode();if(!node)throw new MusicError(sourceError);
   let player:Player;try{player=await this.shoukaku.joinVoiceChannel({guildId,channelId:voice.id,shardId:voice.guild.shardId,deaf:true});}catch{throw new MusicError('Bot tidak dapat masuk voice channel. Periksa izin Connect dan Speak.');}
-  let session:MusicSession;session=new MusicSession(player,voice.id,track=>{const active=this.shoukaku.getIdealNode();if(!active)throw new MusicError(sourceError);return fallbackTrack(q=>active.rest.resolve(q),track);},Date.now,track=>{const active=this.shoukaku.getIdealNode();if(!active)throw new MusicError(sourceError);return prepareTrack(q=>active.rest.resolve(q),track);},encoded=>{void this.startTimedOut(guildId,session,encoded);});const settings=this.persistence.preferences(guildId);session.autoplay=settings.autoplay;session.autoplayStyle=settings.autoplayStyle;session.fair=settings.fair;session.stay=settings.stay;if(settings.stay)this.persistence.setPreferences(guildId,{stayVoice:voice.id});this.sessions.set(guildId,session);this.bind(guildId,session,player);await player.setGlobalVolume(settings.volume).catch(()=>{});return session;
+  let session:MusicSession;session=new MusicSession(player,voice.id,track=>{const active=this.shoukaku.getIdealNode();if(!active)throw new MusicError(sourceError);return fallbackTrack(q=>active.rest.resolve(q),track);},Date.now,track=>{const active=this.shoukaku.getIdealNode();if(!active)throw new MusicError(sourceError);return prepareTrack(q=>active.rest.resolve(q),track);},encoded=>{void this.startTimedOut(guildId,session,encoded);});const settings=this.persistence.preferences(guildId);session.autoplay=settings.autoplay;session.autoplayStyle=settings.autoplayStyle;session.fair=settings.fair;session.stay=settings.stay;if(settings.stay)this.persistence.setPreferences(guildId,{stayVoice:voice.id});this.sessions.set(guildId,session);this.bind(guildId,session,player);this.requestVoiceStatus(guildId);await player.setGlobalVolume(settings.volume).catch(()=>{});return session;
  }
  async autocomplete(i:AutocompleteInteraction){
   if(!i.inGuild()){await i.respond([]);return;}
@@ -120,10 +157,12 @@ export class Music {
   await i.respond(choices.slice(0,25)).catch(()=>{});
  }
  private clearTimers(guild:string){for(const map of [this.idle,this.empty,this.watchdogs]){const t=map.get(guild);if(t)clearTimeout(t);map.delete(guild);}}
- private async dispose(guild:string,preserve=true){const s=this.sessions.get(guild);if(preserve&&s)this.save(guild,s);if(!preserve){this.persistence.clearSession(guild);this.persistence.setPreferences(guild,{stay:false,stayVoice:undefined});}this.sessions.delete(guild);this.clearTimers(guild);this.clearPanel(guild);if(s)await s.stop().catch(()=>{});const publicMessage=this.publicMessages.get(guild);if(publicMessage)await publicMessage.edit({components:[musicNotice(preserve?'Sesi tersimpan. Gunakan /resume.':'Pemutar dihentikan. Antrean dibersihkan.')]}).catch(()=>{});await this.shoukaku.leaveVoiceChannel(guild).catch(()=>{});}
+ private async dispose(guild:string,preserve=true){const s=this.sessions.get(guild);if(preserve&&s)this.save(guild,s);if(!preserve){this.persistence.clearSession(guild);this.persistence.setPreferences(guild,{stay:false,stayVoice:undefined});}this.sessions.delete(guild);if(s)await this.voiceStatus.clear(guild,s.channelId);this.clearTimers(guild);this.clearPanel(guild);if(s)await s.stop().catch(()=>{});const publicMessage=this.publicMessages.get(guild);if(publicMessage)await publicMessage.edit({components:[musicNotice(preserve?'Sesi tersimpan. Gunakan /resume.':'Pemutar dihentikan. Antrean dibersihkan.')]}).catch(()=>{});await this.shoukaku.leaveVoiceChannel(guild).catch(()=>{});}
  private armIdle(guild:string,s:MusicSession){const t=this.idle.get(guild);if(t)clearTimeout(t);this.idle.delete(guild);if(!s.current&&!s.stay)this.idle.set(guild,setTimeout(()=>{void this.serial.run(guild,async()=>{if(this.sessions.get(guild)===s&&!s.current&&!s.stay)await this.dispose(guild);}).catch(()=>{});},this.persistence.preferences(guild).idleSeconds*1000).unref());}
  private bind(guild:string,s:MusicSession,player:Player){
-  let ticks=0;this.watchdogs.set(guild,setInterval(()=>{void this.checkQueue(guild,s,player);if(++ticks%3===0)void this.refreshPublic(guild,s);},5000).unref());
+  s.onPlaybackChange=()=>{if(this.sessions.get(guild)===s)this.syncVoiceStatus(guild);};
+  const previous=this.watchdogs.get(guild);if(previous)clearInterval(previous);
+  let ticks=0;this.watchdogs.set(guild,setInterval(()=>{this.syncVoiceStatus(guild);void this.checkQueue(guild,s,player);if(++ticks%3===0)void this.refreshPublic(guild,s);},5000).unref());
   player.on('end',event=>{const ended=s.current;void this.serial.run(guild,async()=>{if(this.sessions.get(guild)!==s||s.current!==ended||(event.track?.encoded&&event.track.encoded!==ended?.encoded))return;if(event.reason==='finished')await this.finishTrack(guild,s);else await s.end(event.reason,event.track?.encoded);this.save(guild,s);this.armIdle(guild,s);await this.refreshPanel(guild);}).catch(error=>{s.lastError=reportMusicError('QUEUE END',error);});});
   player.on('start',event=>{if(this.sessions.get(guild)!==s||s.current?.encoded!==event.track.encoded)return;s.start(event.track.encoded);if(s.current)this.meter.reset(s.current,s.position);this.profileAudience.set(s,this.listeners(s));this.votes.delete(guild);this.save(guild,s);void this.refreshPanel(guild);});
   player.on('update',event=>{if(this.sessions.get(guild)!==s)return;if(event.state.connected===false){this.meterReset(s);return;}this.onProgress(guild,s,event.state.position);});
@@ -429,6 +468,7 @@ export class Music {
   if(mode==='player')panel.timer=setInterval(()=>{void this.refreshPanel(guild);},15000).unref();
  }
  private async refreshPanel(guild:string){
+  this.syncVoiceStatus(guild);
   const active=this.sessions.get(guild);if(active){this.save(guild,active);await this.refreshPublic(guild,active);}
   const panel=this.panels.get(guild);if(!panel)return;
   if(panel.session.closed||this.sessions.get(guild)!==panel.session){this.clearPanel(guild);return;}
@@ -521,5 +561,5 @@ export class Music {
   };
  }
 
- async shutdown(){this.shuttingDown=true;for(const guild of this.panels.keys())this.clearPanel(guild);for(const [guild,s] of this.sessions)this.save(guild,s);await Promise.allSettled([...this.sessions.keys()].map(id=>this.dispose(id)));this.persistence.close();}
+ async shutdown(){this.shuttingDown=true;for(const guild of this.panels.keys())this.clearPanel(guild);for(const [guild,s] of this.sessions)this.save(guild,s);await Promise.allSettled([...this.sessions.keys()].map(id=>this.dispose(id)));await this.voiceStatus.shutdown();this.persistence.close();}
 }
