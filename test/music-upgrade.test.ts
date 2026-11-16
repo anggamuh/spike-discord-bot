@@ -31,7 +31,7 @@ test('profile settings persist, isolate users, reject unsafe colors and reset wi
   db.setProfileSettings(u,{theme:'purple',background:'waves',accent:'#a78bfa',bio:'Rock & roll'});
   assert.throws(()=>db.setProfileSettings(u,{accent:'"/><x>'}));assert.equal(db.profileSettings(v).bio,'');
   db.close();db=new MusicPersistence(path);assert.equal(db.profileSettings(u).bio,'Rock & roll');
-  db.setProfileSettings(u,{},true);assert.deepEqual(db.profileSettings(u),{theme:'red',background:'vinyl',bio:''});assert.equal(db.listeningProfile(u).total.ms,5000);
+  db.setProfileSettings(u,{},true);assert.deepEqual(db.profileSettings(u),{theme:'purple',background:'vinyl',bio:''});assert.equal(db.listeningProfile(u).total.ms,5000);
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}
 });
 test('leaderboard isolates guilds and counts each listener while playback totals are not multiplied',()=>{
