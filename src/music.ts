@@ -10,6 +10,7 @@ import {AttachmentBuilder,MediaGalleryBuilder,MediaGalleryItemBuilder,TextDispla
 import {Connectors,Shoukaku,type Player,type Track} from 'shoukaku';
 import {MusicError,MusicSession,Serial,identifier,tracksFrom,duration} from './music-core.js';
 import {musicNotice,playerView,queueView,trackAnnouncement,musicV2Flags} from './music-ui.js';
+import {VoiceStatusSync,voiceStatusText} from './voice-status.js';
 import {MusicPersistence,restoredTrack,type SavedTrack,type ProfileSettings} from './music-persistence.js';
 export const musicNames=new Set(['play','skip','pause','resume','queue','stop','nowplaying','volume','autoplay','loop','remove','move','jump','shuffle','clear','voteskip','history','favorite','playlist','dj','panel','playnext','seek','replay','fairqueue','savequeue','status','musicsettings','247','wrapped','profile','profileset','top']);
 const sourceError=`Lavalink belum tersambung di ${process.env.LAVALINK_URL??'127.0.0.1:2333'}. Pastikan terminal npm run lavalink tetap berjalan.`;
@@ -164,7 +165,7 @@ export class Music {
   const previous=this.watchdogs.get(guild);if(previous)clearInterval(previous);
   let ticks=0;this.watchdogs.set(guild,setInterval(()=>{this.syncVoiceStatus(guild);void this.checkQueue(guild,s,player);if(++ticks%3===0)void this.refreshPublic(guild,s);},5000).unref());
   player.on('end',event=>{const ended=s.current;void this.serial.run(guild,async()=>{if(this.sessions.get(guild)!==s||s.current!==ended||(event.track?.encoded&&event.track.encoded!==ended?.encoded))return;if(event.reason==='finished')await this.finishTrack(guild,s);else await s.end(event.reason,event.track?.encoded);this.save(guild,s);this.armIdle(guild,s);await this.refreshPanel(guild);}).catch(error=>{s.lastError=reportMusicError('QUEUE END',error);});});
-  player.on('start',event=>{if(this.sessions.get(guild)!==s||s.current?.encoded!==event.track.encoded)return;s.start(event.track.encoded);if(s.current)this.meter.reset(s.current,s.position);this.profileAudience.set(s,this.listeners(s));this.votes.delete(guild);this.save(guild,s);void this.refreshPanel(guild);});
+  player.on('start',event=>{if(this.sessions.get(guild)!==s||s.current?.encoded!==event.track.encoded)return;s.start(event.track.encoded);if(s.current){this.meter.reset(s.current,s.position);void this.voiceStatus.set(s.channelId,voiceStatusText(s.current.info.title,s.current.info.author));}this.profileAudience.set(s,this.listeners(s));this.votes.delete(guild);this.save(guild,s);void this.refreshPanel(guild);});
   player.on('update',event=>{if(this.sessions.get(guild)!==s)return;if(event.state.connected===false){this.meterReset(s);return;}this.onProgress(guild,s,event.state.position);});
   player.on('exception',event=>{
    // Older Shoukaku typings omit track; capture the active track at event receipt.
