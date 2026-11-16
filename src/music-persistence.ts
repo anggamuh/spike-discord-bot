@@ -31,9 +31,9 @@ export class MusicPersistence {
  setPlaylist(guild:string,name:string,tracks:SavedTrack[]){this.db.prepare('UPDATE music_playlists SET tracks=? WHERE guild_id=? AND name=?').run(JSON.stringify(tracks),guild,name);}
  djRole(guild:string):string|undefined{const row=this.db.prepare('SELECT payload FROM music_settings WHERE guild_id=?').get(guild) as {payload:string}|undefined;return row?(JSON.parse(row.payload) as {djRole?:string}).djRole:undefined;}
  setDjRole(guild:string,role:string|undefined){if(!role){this.db.prepare('DELETE FROM music_settings WHERE guild_id=?').run(guild);return;}this.db.prepare('INSERT INTO music_settings(guild_id,payload) VALUES(?,?) ON CONFLICT(guild_id) DO UPDATE SET payload=excluded.payload').run(guild,JSON.stringify({djRole:role}));}
- profileSettings(user:string):ProfileSettings{const row=this.db.prepare('SELECT payload FROM music_profile_settings WHERE user_id=?').get(user) as {payload:string}|undefined;return {theme:'red',background:'vinyl',bio:'',...(row?JSON.parse(row.payload):{})};}
+ profileSettings(user:string):ProfileSettings{const row=this.db.prepare('SELECT payload FROM music_profile_settings WHERE user_id=?').get(user) as {payload:string}|undefined;return {theme:'purple',background:'vinyl',bio:'',...(row?JSON.parse(row.payload):{})};}
  setProfileSettings(user:string,patch:Partial<ProfileSettings>,reset=false){
-  const value:ProfileSettings=reset?{theme:'red',background:'vinyl',bio:''}:{...this.profileSettings(user),...patch};
+  const value:ProfileSettings=reset?{theme:'purple',background:'vinyl',bio:''}:{...this.profileSettings(user),...patch};
   if(!['red','purple','blue'].includes(value.theme)||!['vinyl','waves','plain'].includes(value.background)||value.accent&&!/^#[0-9a-f]{6}$/i.test(value.accent)||typeof value.bio!=='string'||value.bio.length>60)throw new Error('Pengaturan profil tidak valid.');
   value.bio=value.bio.replace(/[\r\n\t]/g,' ').trim();
   this.db.prepare('INSERT INTO music_profile_settings VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET payload=excluded.payload').run(user,JSON.stringify(value));return value;
