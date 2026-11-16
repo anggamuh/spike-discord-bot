@@ -19,6 +19,8 @@ export class Music {
  readonly shoukaku:Shoukaku;
  private voiceStatus:VoiceStatusManager;
  private voiceStatusEnabled=process.env.HF_VOICE_MUSIC_STATUS?.trim().toLowerCase()!=='false';
+ private voiceStatusDebug=process.env.HF_VOICE_STATUS_DEBUG==='true';
+ private voiceStatusLast=new Map<string,string>();
  private profileAudience=new WeakMap<MusicSession,string[]>();
  private meter=new PlaybackMeter();private shuttingDown=false;
  private persistence=new MusicPersistence(process.env.DATABASE_PATH??'./data/spike.sqlite');
@@ -36,11 +38,12 @@ export class Music {
     if(!me||voice?.type!==ChannelType.GuildVoice)return false;
     const permissions=voice.permissionsFor(me);
     return permissions.has(PermissionFlagsBits.SetVoiceChannelStatus)&&(me.voice.channelId===channel||(clearing&&permissions.has(PermissionFlagsBits.ManageChannels)));
-   },onError:error=>{reportMusicError('VOICE STATUS',error);}});
+   },onError:error=>{reportMusicError('VOICE STATUS',error);},onDebug:msg=>{if(this.voiceStatusDebug)console.log('[VOICE STATUS] '+msg);}});
   client.on(Events.Raw,packet=>{
    if(!this.voiceStatusEnabled)return;
-   if(packet.t==='VOICE_CHANNEL_STATUS_UPDATE')this.voiceStatus.observe(packet.d.id,packet.d.status);
+   if(packet.t==='VOICE_CHANNEL_STATUS_UPDATE'){if(this.voiceStatusDebug)console.log('[VOICE STATUS] Gateway update channel='+packet.d.id+' status='+JSON.stringify(packet.d.status));this.voiceStatus.observe(packet.d.id,packet.d.status);}
    if(packet.t==='CHANNEL_INFO'){
+    if(this.voiceStatusDebug)console.log('[VOICE STATUS] CHANNEL_INFO guild='+packet.d.guild_id+' statuses='+JSON.stringify(packet.d.channels?.filter((channel:{status?:string|null})=>channel.status!==undefined).map((channel:{id:string;status?:string|null})=>({id:channel.id,status:channel.status}))??[]));
     for(const channel of packet.d.channels)if(channel.status!==undefined)this.voiceStatus.observe(channel.id,channel.status);
     this.syncVoiceStatus(packet.d.guild_id);
    }
@@ -67,13 +70,17 @@ export class Music {
  }
  private requestVoiceStatus(guildId:string){
   if(!this.voiceStatusEnabled)return;
+  if(this.voiceStatusDebug)console.log('[VOICE STATUS] Request CHANNEL_INFO guild='+guildId);
   this.client.guilds.cache.get(guildId)?.shard.send({op:GatewayOpcodes.RequestChannelInfo,d:{guild_id:guildId,fields:['status']}});
  }
  private syncVoiceStatus(guild:string){
   if(!this.voiceStatusEnabled)return;
   const s=this.sessions.get(guild);if(!s)return;
+  const connectedChannel=this.client.guilds.cache.get(guild)?.members.me?.voice.channelId;
+  const reason=s.closed||!s.current?'no-current-track':!s.started?'waiting-lavalink-start':connectedChannel!==s.channelId?'voice-state-not-ready':'ready';
+  if(this.voiceStatusDebug){const key=[reason,s.channelId,connectedChannel??'none',s.current?.info.title??'none',s.paused].join('|');if(this.voiceStatusLast.get(guild)!==key){this.voiceStatusLast.set(guild,key);console.log('[VOICE STATUS] guild='+guild+' reason='+reason+' voice='+s.channelId+' botVoice='+(connectedChannel??'none')+' title='+JSON.stringify(s.current?.info.title??null));}}
   if(s.closed||!s.current){void this.voiceStatus.clear(guild,s.channelId);return;}
-  if(!s.started||this.client.guilds.cache.get(guild)?.members.me?.voice.channelId!==s.channelId)return;
+  if(!s.started||connectedChannel!==s.channelId)return;
   void this.voiceStatus.update(guild,s.channelId,musicVoiceStatus(s.current,s.paused));
  }
  private listeners(s:MusicSession){const channel=this.client.channels.cache.get(s.channelId);if(!channel?.isVoiceBased())return [];return [...channel.members.values()].filter(m=>!m.user.bot&&!m.voice.deaf&&!m.voice.suppress).map(m=>m.id);}
