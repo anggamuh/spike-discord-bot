@@ -63,7 +63,7 @@ export class VoiceStatusManager {
   if (this.options.enabled === false || this.closed) return Promise.resolve();
   let state = this.states.get(channel);
   if (!state) {
-   state = {guild, channel, observed: this.observations.get(channel), revision: 0, retryAt: 0, waiters: [], initialTakeoverAvailable: this.options.allowInitialTakeover?.(guild, channel) === true};
+   state = {guild, channel, observed: this.observations.get(channel), revision: 0, retryAt: 0, waiters: [], initialTakeoverAvailable: this.options.allowInitialTakeover !== undefined};
    this.states.set(channel, state);
   }
   state.desired = desired;
@@ -95,9 +95,12 @@ export class VoiceStatusManager {
   if (state.observed === undefined) { this.options.onDebug?.('skip: no CHANNEL_INFO observation channel='+state.channel); return; }
   // A restarted bot cannot prove ownership of an existing Discord status.
   // Only an explicitly allowlisted channel may be adopted once per process.
-  if (state.initialTakeoverAvailable) {
+  // Defer the authorization check: request() may run before music starts.
+  // A changed gateway status still revokes this one-time eligibility.
+  if (state.initialTakeoverAvailable && desired !== null &&
+      this.options.allowInitialTakeover?.(state.guild, state.channel) === true) {
    state.initialTakeoverAvailable = false;
-   if (desired !== null && state.managed === undefined && state.observed !== null) {
+   if (state.managed === undefined && state.observed !== null) {
     state.managed = state.observed;
     this.options.onDebug?.('startup takeover authorized channel='+state.channel);
    }
