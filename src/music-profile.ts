@@ -27,15 +27,15 @@ export async function renderProfile(data:ProfileData):Promise<Buffer>{
  const ornament=(x:number,y:number,flip=1)=>
   `<g transform="translate(${x} ${y}) scale(${flip} 1)" fill="none" stroke="#c7c1d2" stroke-opacity=".68" stroke-linecap="round"><path d="M0 100Q12 45 70 24Q44 25 38 6M14 65Q55 56 65 85M39 37Q80 35 92 17" stroke-width="2"/><path d="M23 54L15 37L39 47M61 27L58 8L73 20M54 64L78 58L60 77" stroke-width="1.5"/></g>`;
  const panel=(x:number,y:number,w:number,h:number,label:string,rows:ProfileRow[],limit=3)=>{
-  let out=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="#0e0d16" fill-opacity=".94" stroke="#bcb0c9" stroke-opacity=".44"/>`;
-  out+=`<path d="M${x+14} ${y+49}H${x+w-14}" stroke="${accent}" stroke-opacity=".35"/>`;
+  let out=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" fill="#0d0b16" fill-opacity=".96" stroke="url(#silver)" stroke-opacity=".57"/>`;
+  out+=`<path d="M${x+14} ${y+49}H${x+w-14}" stroke="${accent}" stroke-opacity=".4"/><path d="M${x+12} ${y+12}V${y+25}M${x+12} ${y+12}H${x+25}M${x+w-12} ${y+h-25}V${y+h-12}H${x+w-25}" stroke="${accent}" stroke-opacity=".7" fill="none"/>`;
   out+=text(x+20,y+32,label,16,'#e8e1f1',700);
   for(let i=0;i<limit;i++){
    const cy=y+75+i*34, row=rows[i];
    out+=`<rect x="${x+16}" y="${cy-18}" width="24" height="24" rx="4" fill="${i===0?accent:'#b1a6c2'}" fill-opacity="${i===0?'.75':'.16'}"/>`;
    out+=text(x+28,cy-1,String(i+1),13,i===0?'#12101c':'#d4c9e2',700,'middle');
-   out+=text(x+49,cy-1,row?shortText(row.name,16):'Belum ada data',13,row?'#f1ebf7':'#81778f',600);
-   if(row)out+=text(x+w-13,cy-1,listeningTime(row.ms),11,accent,600,'end');
+   out+=text(x+49,cy-1,row?shortText(row.name,32):'Belum ada data',13,row?'#f1ebf7':'#81778f',600);
+   if(row)out+=text(x+w-13,cy-1,listeningTime(row.ms),12,accent,600,'end');
   }
   return out;
  };
@@ -85,30 +85,30 @@ export async function renderProfile(data:ProfileData):Promise<Buffer>{
   ${avatar?avatar.replace(/x="46" y="55" width="132" height="132"/,'x="108" y="140" width="164" height="164"'):text(190,242,shortText(data.name,2).replace('…','').toUpperCase(),48,accent,700,'middle',serif)}
   ${diamond(190,122,10)}${diamond(190,321,10)}${diamond(91,222,9)}${diamond(289,222,9)}
   <path d="M307 142H895" stroke="${accent}" stroke-opacity=".3"/>
-  ${text(324,171,'HOLLOWFANG  /  MEMBER DOSSIER',12,accent,800)}
+  ${text(324,171,'HOLLOWFANG  /  THE LISTENER ARCHIVE',12,accent,800)}
   ${text(324,220,shortText(data.name,24),39,'#f5eff9',700,'start',serif)}
   ${text(324,251,data.bio?shortText(data.bio,56):'Still breathing in Hollowfang.',17,'#d8c9e2',500)}
   <rect x="324" y="272" width="185" height="30" rx="6" fill="${accent}" fill-opacity=".16" stroke="${accent}" stroke-opacity=".62"/>
   ${diamond(344,286,6)}${text(358,292,'HOLLOWFANG MEMBER',12,'#efe6f9',700)}
   <rect x="523" y="272" width="145" height="30" rx="6" fill="#17131e" stroke="#e1d8ea" stroke-opacity=".35"/>
-  ${text(595,292,'✧  LISTENER',12,'#e6deef',600,'middle')}
+  ${text(595,292,'✧  MUSIC SOUL',12,'#e6deef',600,'middle')}
   <!-- Main music ledger -->
   <rect x="70" y="348" width="860" height="92" rx="9" fill="#12101a" fill-opacity=".93" stroke="url(#silver)" stroke-opacity=".58"/>
-  <path d="M332 360V427M575 360V427" stroke="${accent}" stroke-opacity=".3"/>
+  <path d="M373 360V427M565 360V427" stroke="${accent}" stroke-opacity=".3"/>
   ${text(95,374,'TOTAL LISTENING',13,'#c4b7d1',700)}
   ${text(96,415,listeningTime(data.totalMs),34,'#f7f2fa',700,'start',serif)}
-  ${text(355,374,'REALMS VISITED',13,'#c4b7d1',700)}
-  ${text(355,415,String(data.serverCount),34,accent,700,'start',serif)}
-  ${text(598,374,'TRACKS DISCOVERED',13,'#c4b7d1',700)}
-  ${text(598,415,String(data.trackCount),34,accent,700,'start',serif)}
+  ${text(397,374,'TRACKS PLAYED',13,'#c4b7d1',700)}
+  ${text(397,415,String(data.trackCount),34,accent,700,'start',serif)}
+  ${text(590,374,'MOST LISTENED TRACK',13,'#c4b7d1',700)}
+  ${text(590,411,shortText(data.tracks[0]?.name??'No tracks yet',22),19,'#f4eaff',700)}
+  ${text(590,429,data.tracks[0]?listeningTime(data.tracks[0].ms):'Start your music journey',11,accent,600)}
   ${diamond(906,393,17)}
-  <!-- Three genuine listener-statistic tables; no fake XP or ranking -->
-  ${panel(70,458,273,170,'I  /  REALMS',data.servers)}
-  ${panel(363,458,273,170,'II  /  KINDRED',data.friends)}
-  ${panel(656,458,274,170,'III  /  MUSIC',data.tracks)}
+  <!-- Hollowfang-only stats: music and companions, without cross-server realms. -->
+  ${panel(70,458,417,170,'I  /  KINDRED LISTENERS',data.friends)}
+  ${panel(513,458,417,170,'II  /  TOP TRACKS',data.tracks)}
   ${line(170,654,438,654,.5)}${line(562,654,830,654,.5)}${diamond(500,654,10)}
   ${text(500,660,data.demo?'HOLLOWFANG  /  DEMO PREVIEW':'HOLLOWFANG  /  THE HOLLOW REMEMBERS',12,'#d6c8e2',700,'middle')}
-  ${text(500,697,'MUSIC LISTENING PROFILE   •   CRYPT',10,'#a99dbb',600,'middle')}
+  ${text(500,697,'HOLLOWFANG EXCLUSIVE   •   POWERED BY CRYPT',10,'#a99dbb',600,'middle')}
  </g></svg>`;
 
  return sharp(Buffer.from(svg)).png().toBuffer();
