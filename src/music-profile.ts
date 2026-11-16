@@ -26,6 +26,23 @@ export async function renderProfile(data:ProfileData):Promise<Buffer>{
   `<path d="M${x} ${y-r} L${x+r*.65} ${y} L${x} ${y+r} L${x-r*.65} ${y}Z" fill="${accent}" stroke="#f5efff" stroke-opacity=".75" stroke-width=".8"/>`;
  const ornament=(x:number,y:number,flip=1)=>
   `<g transform="translate(${x} ${y}) scale(${flip} 1)" fill="none" stroke="#c7c1d2" stroke-opacity=".68" stroke-linecap="round"><path d="M0 100Q12 45 70 24Q44 25 38 6M14 65Q55 56 65 85M39 37Q80 35 92 17" stroke-width="2"/><path d="M23 54L15 37L39 47M61 27L58 8L73 20M54 64L78 58L60 77" stroke-width="1.5"/></g>`;
+ const rose=(x:number,y:number,scale=1)=>`
+ <g transform="translate(${x} ${y}) scale(${scale})" fill="none" stroke="${accent}" stroke-width="1.5">
+ <path d="M0 0C-17 -22 -38 -10 -26 8C-42 16 -26 32 -9 21C-3 42 18 34 18 17C38 20 43 -2 25 -12C27 -32 8 -36 0 -20C-8 -28 -27 -19 -19 -8Z" fill="#1d1228" stroke-opacity=".9"/>
+ <path d="M-10 -8Q4 -20 16 -7Q27 7 8 16Q-9 21 -17 6Q-19 -8 0 -13Q14 -11 11 2Q3 10 -5 5Q-7 -3 4 -4M-25 12Q-40 6 -47 18M18 20Q35 29 44 19M-5 26Q-17 42 -11 51" stroke="#cbb6de" stroke-opacity=".66"/>
+ <path d="M-46 18L-33 10L-34 24M44 19L34 11L34 27M-11 51L-19 39L-2 44" stroke-opacity=".55"/>
+ </g>`;
+ const gothicWindow=(x:number,y:number,w:number,h:number)=>`
+ <g opacity=".8"><path d="M${x} ${y+h}V${y+70}Q${x+w/2} ${y-45} ${x+w} ${y+70}V${y+h}Z" fill="#21162f" fill-opacity=".8" stroke="#d6c6e8" stroke-opacity=".65" stroke-width="3"/>
+ <path d="M${x+12} ${y+h-9}V${y+76}Q${x+w/2} ${y-18} ${x+w-12} ${y+76}V${y+h-9}Z" fill="url(#glass)" stroke="${accent}" stroke-opacity=".7"/>
+ <path d="M${x+w/2} ${y+28}V${y+h}M${x+12} ${y+99}H${x+w-12}M${x+12} ${y+153}H${x+w-12}M${x+12} ${y+210}H${x+w-12}M${x+12} ${y+99}L${x+w-12} ${y+210}M${x+w-12} ${y+99}L${x+12} ${y+210}" stroke="#e7d4ef" stroke-opacity=".35" fill="none" stroke-width="1.5"/>
+ <circle cx="${x+w/2}" cy="${y+76}" r="14" fill="none" stroke="${accent}" stroke-opacity=".65"/><circle cx="${x+w/2}" cy="${y+76}" r="5" fill="${accent}" opacity=".6"/>
+ </g>`;
+ const thornRail=(x:number,y:number,width:number)=>`
+ <g fill="none" stroke="url(#silver)" stroke-width="2.1" stroke-opacity=".87">
+ <path d="M${x} ${y}Q${x+width/3} ${y-7} ${x+width/2} ${y}Q${x+width*2/3} ${y+7} ${x+width} ${y}"/>
+ ${Array.from({length:11},(_,i)=>{const tx=x+i*width/10;return `<path d="M${tx} ${y}l${i%2?8:-8} ${i%2?-18:18}l${i%2?-3:7} ${i%2?8:-8}"/>`}).join('')}
+ </g>`;
  const panel=(x:number,y:number,w:number,h:number,label:string,rows:ProfileRow[],limit=3)=>{
   let out=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" fill="#0d0b16" fill-opacity=".96" stroke="url(#silver)" stroke-opacity=".57"/>`;
   out+=`<path d="M${x+14} ${y+49}H${x+w-14}" stroke="${accent}" stroke-opacity=".4"/><path d="M${x+12} ${y+12}V${y+25}M${x+12} ${y+12}H${x+25}M${x+w-12} ${y+h-25}V${y+h-12}H${x+w-25}" stroke="${accent}" stroke-opacity=".7" fill="none"/>`;
@@ -34,7 +51,7 @@ export async function renderProfile(data:ProfileData):Promise<Buffer>{
    const cy=y+75+i*34, row=rows[i];
    out+=`<rect x="${x+16}" y="${cy-18}" width="24" height="24" rx="4" fill="${i===0?accent:'#b1a6c2'}" fill-opacity="${i===0?'.75':'.16'}"/>`;
    out+=text(x+28,cy-1,String(i+1),13,i===0?'#12101c':'#d4c9e2',700,'middle');
-   out+=text(x+49,cy-1,row?shortText(row.name,32):'Belum ada data',13,row?'#f1ebf7':'#81778f',600);
+   out+=text(x+49,cy-1,row?shortText(row.name,23):'Belum ada data',13,row?'#f1ebf7':'#81778f',600);
    if(row)out+=text(x+w-13,cy-1,listeningTime(row.ms),12,accent,600,'end');
   }
   return out;
@@ -44,7 +61,7 @@ export async function renderProfile(data:ProfileData):Promise<Buffer>{
   <linearGradient id="night" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#10101a"/><stop offset=".48" stop-color="${light}"/><stop offset="1" stop-color="#070810"/></linearGradient>
   <radialGradient id="moon"><stop stop-color="${accent}" stop-opacity=".38"/><stop offset="1" stop-color="${accent}" stop-opacity="0"/></radialGradient>
   <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#39304d"/><stop offset=".55" stop-color="${accent}" stop-opacity=".75"/><stop offset="1" stop-color="#171128"/></linearGradient>
-  <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#faf5ff"/><stop offset=".5" stop-color="#796f85"/><stop offset="1" stop-color="#ddd5e8"/></linearGradient>
+  <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#faf5ff"/><stop offset=".5" stop-color="#796f85"/><stop offset="1" stop-color="#ddd5e8"/></linearGradient><linearGradient id="shimmer" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#322341"/><stop offset=".48" stop-color="${accent}" stop-opacity=".95"/><stop offset="1" stop-color="#322341"/></linearGradient>
   <clipPath id="edge"><rect width="1000" height="710" rx="18"/></clipPath>
   <clipPath id="avatar"><circle cx="190" cy="222" r="82"/></clipPath>
   <filter id="soft"><feGaussianBlur stdDeviation="14"/></filter>
@@ -52,6 +69,7 @@ export async function renderProfile(data:ProfileData):Promise<Buffer>{
  <g clip-path="url(#edge)">
   <rect width="1000" height="710" fill="url(#night)"/>
   <ellipse cx="500" cy="130" rx="385" ry="240" fill="url(#moon)" opacity=".42"/>
+  ${gothicWindow(14,-15,122,360)}${gothicWindow(864,-15,122,360)}
   <!-- Gothic pointed stained-glass windows and tracery -->
   <g fill="#15111f" stroke="#9990a6" stroke-opacity=".5" stroke-width="3">
    <path d="M23 315V92Q23 34 100 12Q176 34 176 92V315Z"/>
@@ -72,20 +90,29 @@ export async function renderProfile(data:ProfileData):Promise<Buffer>{
   <rect x="34" y="30" width="932" height="646" rx="6" fill="none" stroke="${accent}" stroke-opacity=".28"/>
   ${ornament(45,20)}${ornament(955,20,-1)}
   ${ornament(45,556)}${ornament(955,556,-1)}
+  ${thornRail(55,39,180)}${thornRail(765,39,180)}
+  ${thornRail(70,663,340)}${thornRail(590,663,340)}
+  ${rose(52,590,.85)}${rose(948,590,.85)}
+  ${rose(105,669,.60)}${rose(891,669,.60)}
   ${line(270,78,408,78,.48)}${line(592,78,730,78,.48)}${diamond(260,78,8)}${diamond(740,78,8)}
   ${text(500,64,'H O L L O W F A N G',32,'#f3ecf9',700,'middle',serif)}
+  <path d="M480 22L489 36L500 15L511 36L520 22L514 43H486Z" fill="url(#silver)" stroke="${accent}" stroke-opacity=".75"/>
   ${text(500,90,'E X C L U S I V E   C O M M U N I T Y',11,'#c7b8d4',600,'middle')}
   ${diamond(500,102,7)}${line(260,106,488,106,.4)}${line(512,106,740,106,.4)}
   <!-- Main member identity -->
   <rect x="70" y="128" width="860" height="202" rx="10" fill="#0a0a12" fill-opacity=".79" stroke="#c5bad0" stroke-opacity=".62" stroke-width="1.4"/>
   <path d="M80 149L80 139L90 139M920 149L920 139L910 139M80 310L80 320L90 320M920 310L920 320L910 320" fill="none" stroke="${accent}" stroke-width="2"/>
+  <circle cx="190" cy="222" r="104" fill="none" stroke="${accent}" stroke-width="1.1" stroke-dasharray="6 9" stroke-opacity=".72"/>
   <circle cx="190" cy="222" r="97" fill="none" stroke="url(#silver)" stroke-width="3" stroke-opacity=".9"/>
+  <path d="M190 103Q133 114 113 158M190 341Q252 326 273 283M86 216Q103 172 133 150M294 228Q272 268 249 290" stroke="url(#silver)" stroke-width="2" fill="none"/>
+  ${Array.from({length:12},(_,i)=>{const a=i*Math.PI/6;const x=190+101*Math.cos(a),y=222+101*Math.sin(a);return diamond(x,y,i%3===0?8:4)}).join('')}
   <circle cx="190" cy="222" r="91" fill="none" stroke="${accent}" stroke-width="2" stroke-opacity=".75"/>
   <circle cx="190" cy="222" r="82" fill="#15121e"/>
   ${avatar?avatar.replace(/x="46" y="55" width="132" height="132"/,'x="108" y="140" width="164" height="164"'):text(190,242,shortText(data.name,2).replace('…','').toUpperCase(),48,accent,700,'middle',serif)}
   ${diamond(190,122,10)}${diamond(190,321,10)}${diamond(91,222,9)}${diamond(289,222,9)}
   <path d="M307 142H895" stroke="${accent}" stroke-opacity=".3"/>
   ${text(324,171,'HOLLOWFANG  /  THE LISTENER ARCHIVE',12,accent,800)}
+  <path d="M328 184H750" stroke="url(#shimmer)" stroke-width="1.5"/>
   ${text(324,220,shortText(data.name,24),39,'#f5eff9',700,'start',serif)}
   ${text(324,251,data.bio?shortText(data.bio,56):'Still breathing in Hollowfang.',17,'#d8c9e2',500)}
   <rect x="324" y="272" width="185" height="30" rx="6" fill="${accent}" fill-opacity=".16" stroke="${accent}" stroke-opacity=".62"/>
@@ -94,6 +121,7 @@ export async function renderProfile(data:ProfileData):Promise<Buffer>{
   ${text(595,292,'✧  MUSIC SOUL',12,'#e6deef',600,'middle')}
   <!-- Main music ledger -->
   <rect x="70" y="348" width="860" height="92" rx="9" fill="#12101a" fill-opacity=".93" stroke="url(#silver)" stroke-opacity=".58"/>
+  <path d="M82 356H918" stroke="url(#shimmer)" stroke-opacity=".5"/>
   <path d="M373 360V427M565 360V427" stroke="${accent}" stroke-opacity=".3"/>
   ${text(95,374,'TOTAL LISTENING',13,'#c4b7d1',700)}
   ${text(96,415,listeningTime(data.totalMs),34,'#f7f2fa',700,'start',serif)}
