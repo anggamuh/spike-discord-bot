@@ -18,7 +18,7 @@ type State = {
 
 export function musicVoiceStatus(track: {info: {title: string; author: string}}, paused: boolean) {
  const clean = (s: string) => s.replace(/[\r\n\t]/g, ' ').trim();
- return Array.from(`${paused ? '⏸️ ' : ' '}${clean(track.info.title)} — ${clean(track.info.author)}`).slice(0, 500).join('');
+ return Array.from(`${paused ? '⏸️ ' : ''}${clean(track.info.title)} — ${clean(track.info.author)}`).slice(0, 500).join('');
 }
 
 /** Coalesced, serialized writes per channel; only successful writes are owned. */
@@ -32,6 +32,10 @@ export class VoiceStatusManager {
  }
  observe(channel: string, status: string | null) {
   if (this.options.enabled === false || this.closed) return;
+  // Discord may normalize surrounding whitespace on the status we PUT.
+  // Compare canonical values so our own gateway acknowledgement is not
+  // mistaken for a manual edit, while genuinely different edits stay protected.
+  status = status?.trim() ?? null;
   this.observations.set(channel, status);
   const state = this.states.get(channel);
   if (!state) return;
@@ -44,7 +48,7 @@ export class VoiceStatusManager {
   if (state.desired !== undefined) this.schedule(state);
  }
  update(guild: string, channel: string, status: string) {
-  return this.request(guild, channel, Array.from(status).slice(0, 500).join(''));
+  return this.request(guild, channel, Array.from(status.trim()).slice(0, 500).join(''));
  }
  clear(guild: string, channel: string) {
   if (!this.states.has(channel)) return Promise.resolve();
