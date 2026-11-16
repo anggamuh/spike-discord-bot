@@ -19,6 +19,15 @@ test('bots, deaf and suppressed listeners are excluded but muted listeners may l
  assert.deepEqual((Music.prototype as any).listeners.call(owner,{channelId:'v'}),[u]);
 });
 test('all profile themes render PNG even with malicious-looking text, Unicode and no data',async()=>{for(const theme of ['red','purple','blue'] as const){const png=await renderProfile({name:'<script> & "名字😀',totalMs:0,serverCount:0,trackCount:0,servers:[],friends:[],tracks:[],theme});const meta=await sharp(png).metadata();assert.equal(meta.format,'png');assert.equal(meta.width,1000);assert.equal(meta.height,710);assert.ok(png.length<2_000_000);}});
+test('Hollowfang card ignores cross-server realms and highlights actual music data',async()=>{
+ const common={name:'Member',totalMs:7200000,trackCount:3,friends:[{name:'Friend',ms:3600000}],tracks:[{name:'Song A',ms:3600000},{name:'Song B',ms:1800000}]};
+ const one=await renderProfile({...common,serverCount:1,servers:[{name:'Hollowfang',ms:7200000}]});
+ const two=await renderProfile({...common,serverCount:9,servers:[{name:'Other Server',ms:7200000}]});
+ assert.deepEqual(one,two,'Cross-server realms must not affect the exclusive Hollowfang card');
+ const different=await renderProfile({...common,serverCount:1,servers:[],tracks:[{name:'New top track',ms:3600000}]});
+ assert.notDeepEqual(one,different,'Top music tracks must remain visible in the design');
+});
+
 test('renderer accepts decoded avatar and falls back on corrupt image',async()=>{const data={name:'Test',totalMs:5000,serverCount:1,trackCount:1,servers:[{name:'W'.repeat(150),ms:5000}],friends:[],tracks:[{name:'<title>&',detail:'Artist',ms:5000}]};const avatar=await sharp({create:{width:32,height:32,channels:4,background:'#ff0000'}}).png().toBuffer();for(const image of [avatar,Buffer.from('invalid')])assert.equal((await sharp(await renderProfile({...data,avatar:image})).metadata()).width,1000);});
 test('avatar fetch rejects non-Discord hosts and oversized responses without following redirects',async()=>{let calls=0;const request=async(_u:any,init:any)=>{calls++;assert.equal(init.redirect,'error');return new Response('x',{headers:{'content-length':'3000000'}});};assert.equal(await discordAvatar('http://localhost/a',request as any),undefined);assert.equal(await discordAvatar('https://cdn.discordapp.com.attacker.test/avatars/a',request as any),undefined);assert.equal(calls,0);assert.equal(await discordAvatar('https://cdn.discordapp.com/embed/avatars/0.png',request as any),undefined);assert.equal(calls,1);});
 test('profile formatting truncates width and distinguishes days/hours',()=>{assert.match(shortText('W'.repeat(100),22),/…$/);assert.equal(listeningTime(38*3600000),'1 hari 14j');assert.equal(listeningTime(10000),'<1 menit');});
