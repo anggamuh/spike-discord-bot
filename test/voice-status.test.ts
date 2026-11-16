@@ -12,7 +12,7 @@ function fixture(options: Partial<ConstructorParameters<typeof VoiceStatusManage
  manager.observe('v',null);manager.observe('w',null);
  return {manager,calls,errors};
 }
-const track=(id:string):Track=>({encoded:id,info:{identifier:id,title:id,author:'Artist',length:10000,isStream:false,isSeekable:true,position:0,sourceName:'youtube'},pluginInfo:{}});
+const track=(id:string):Track=>({encoded:id,info:{identifier:id,title:id,author:'Artist',length:120000,isStream:false,isSeekable:true,position:0,sourceName:'youtube'},pluginInfo:{}});
 
 test('play → skip → pause → resume → natural end → stop uses actual session notifications',async()=>{
  const f=fixture(),s=new MusicSession({async playTrack(){},async stopTrack(){},async setPaused(){}},'v');
