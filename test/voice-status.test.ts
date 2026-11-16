@@ -63,6 +63,25 @@ test('trimmed Discord echo keeps bot ownership across skip but manual changes st
  assert.deepEqual(writes,['First — Artist','Second — Artist']);
  await manager.shutdown();
 });
+test('explicit restart takeover reclaims a stale existing status only once', async()=> {
+ const f=fixture({allowInitialTakeover:(_g,c)=>c==='v'});
+ f.manager.observe('v','previous song — Artist');
+ await f.manager.update('g','v','new song — Artist');
+ assert.deepEqual(f.calls,[['v','new song — Artist']]);
+ f.manager.observe('v','someone manually edited');
+ await f.manager.update('g','v','another song — Artist');
+ assert.deepEqual(f.calls,[['v','new song — Artist']]);
+ await f.manager.shutdown();
+});
+
+test('restart takeover is disabled by default and for channels not allowlisted', async()=> {
+ const f=fixture({allowInitialTakeover:(_g,c)=>c==='w'});
+ f.manager.observe('v','status made by someone else');
+ await f.manager.update('g','v','music track');
+ assert.deepEqual(f.calls,[]);
+ await f.manager.shutdown();
+});
+
 test('gateway acknowledgement before HTTP response preserves ownership; manual edit in flight wins',async()=>{
  let manager!:VoiceStatusManager;
  const f=fixture({put:async(c,s)=>{manager.observe(c,s);}});manager=f.manager;
