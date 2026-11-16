@@ -22,7 +22,7 @@ test('play → skip → pause → resume → natural end → stop uses actual se
  await s.skip();s.start('b');await pending;
  await s.setPaused(true);await pending;await s.setPaused(false);await pending;
  s.progress(100);await s.end('finished','b');await pending;await s.stop();await pending;
- assert.deepEqual(f.calls.map(x=>x[1]),[' a — Artist',' b — Artist','⏸️ b — Artist',' b — Artist',null]);
+ assert.deepEqual(f.calls.map(x=>x[1]),['a — Artist','b — Artist','⏸️ b — Artist','b — Artist',null]);
  await f.manager.shutdown();
 });
 test('autoplay completion publishes the next track through the existing finishTrack path',async()=>{
@@ -31,7 +31,7 @@ test('autoplay completion publishes the next track through the existing finishTr
  s.autoplay=true;s.add([track('a')]);await s.next();s.start('a');s.progress(100);await pending;
  const owner={shoukaku:{getIdealNode:()=>({rest:{resolve:async()=>({loadType:LoadType.SEARCH,data:[track('b')]})}})},persistence:{history:()=>[]}};
  await (Music.prototype as any).finishTrack.call(owner,'g',s);s.start('b');await pending;
- assert.equal(f.calls.at(-1)?.[1],' b — Artist');await s.stop();await pending;await f.manager.shutdown();
+ assert.equal(f.calls.at(-1)?.[1],'b — Artist');await s.stop();await pending;await f.manager.shutdown();
 });
 test('unchanged status is deduplicated and simultaneous guilds are independent',async()=>{
  const f=fixture();await Promise.all([f.manager.update('g','v','a'),f.manager.update('h','w','b')]);
@@ -50,6 +50,18 @@ test('rapid skips are serialized and coalesced; cleanup wins over an in-flight w
  const a=f.manager.update('g','v','a');await start;
  const b=f.manager.update('g','v','b'),c=f.manager.update('g','v','c');release();await Promise.all([a,b,c]);
  assert.deepEqual(calls,['a','c']);await f.manager.clear('g','v');assert.equal(calls.at(-1),null);await f.manager.shutdown();
+});
+test('trimmed Discord echo keeps bot ownership across skip but manual changes still win',async()=>{
+ const writes:string[]=[];
+ let manager!:VoiceStatusManager;
+ manager = fixture({put:async(c,s)=>{writes.push(String(s));manager.observe(c,String(s).trim());}}).manager;
+ await manager.update('g','v',' First — Artist');
+ await manager.update('g','v',' Second — Artist');
+ assert.deepEqual(writes,['First — Artist','Second — Artist']);
+ manager.observe('v','manually set by member');
+ await manager.update('g','v','Third — Artist');
+ assert.deepEqual(writes,['First — Artist','Second — Artist']);
+ await manager.shutdown();
 });
 test('gateway acknowledgement before HTTP response preserves ownership; manual edit in flight wins',async()=>{
  let manager!:VoiceStatusManager;
@@ -78,6 +90,6 @@ test('disabled module performs no writes including cleanup; shutdown cancels pen
  await g.manager.update('g','v','a');await g.manager.shutdown();await delay(30);assert.equal(attempts,1);
 });
 test('Unicode formatting is bounded to 500 code points without cutting surrogate pairs',()=>{
- assert.equal(musicVoiceStatus(track('a'),false),' a — Artist');assert.equal(musicVoiceStatus(track('a'),true),'⏸️ a — Artist');
+ assert.equal(musicVoiceStatus(track('a'),false),'a — Artist');assert.equal(musicVoiceStatus(track('a'),true),'⏸️ a — Artist');
  assert.equal(Array.from(musicVoiceStatus(track('🎵'.repeat(600)),false)).length,500);
 });
