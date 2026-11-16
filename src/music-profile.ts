@@ -16,26 +16,100 @@ export async function renderProfile(data:ProfileData):Promise<Buffer>{
  const palettes={red:['#251320','#100d15','#e8a5b5'],purple:['#1b1830','#0a0b14','#bd9aff'],blue:['#142431','#090f19','#a6d1e6']};
  const [light,dark,defaultAccent]=palettes[data.theme??'purple'];const accent=data.accent&&/^#[0-9a-f]{6}$/i.test(data.accent)?data.accent:defaultAccent;let avatar='';
  if(data.avatar){try{const png=await sharp(data.avatar,{limitInputPixels:1048576}).resize(132,132,{fit:'cover'}).png().toBuffer();avatar=`<image x="46" y="55" width="132" height="132" href="data:image/png;base64,${png.toString('base64')}" clip-path="url(#avatar)"/>`;}catch{}}
- const text=(x:number,y:number,value:string,size=22,color='#fff',weight=500)=>`<text x="${x}" y="${y}" font-size="${size}" fill="${color}" font-weight="${weight}">${xml(value)}</text>`;
- const panel=(x:number,y:number,w:number,h:number,label:string,rows:ProfileRow[],wide=false)=>{
-  let body=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="18" fill="#10101a" fill-opacity=".91" stroke="${accent}" stroke-opacity=".25"/>${text(x+24,y+35,label,16,'#ddd0f2',700)}`;
-  for(let i=0;i<3;i++){const row=rows[i],cy=y+72+i*(wide?48:43);body+=`<rect x="${x+24}" y="${cy-19}" width="26" height="26" rx="6" fill="${i===0?accent:'#ffffff'}" fill-opacity="${i===0?'.95':'.08'}"/>${text(x+32,cy,String(i+1),15,i===0?'#10101a':'#b7adc8',700)}`;
-   body+=text(x+64,cy,row?shortText(row.name,wide?57:22):'Belum ada data',wide?21:20,row?'#fff':'#8d869e',600);
-   if(row){body+=`<text x="${x+w-24}" y="${cy}" text-anchor="end" font-size="${wide?20:17}" fill="${accent}" font-weight="600">${xml(listeningTime(row.ms))}</text>`;if(wide&&row.detail)body+=text(x+64,cy+18,shortText(row.detail,75),12,'#a69ab6');}
-  }return body;
+
+ const text=(x:number,y:number,value:string,size=22,color='#fff',weight=500,anchor='start',family='DejaVu Sans, Arial, sans-serif')=>
+  `<text x="${x}" y="${y}" font-size="${size}" fill="${color}" font-weight="${weight}" text-anchor="${anchor}" font-family="${family}">${xml(value)}</text>`;
+ const serif='DejaVu Serif, Georgia, serif';
+ const line=(x1:number,y1:number,x2:number,y2:number,opacity=.3)=>
+  `<path d="M${x1} ${y1} L${x2} ${y2}" fill="none" stroke="${accent}" stroke-opacity="${opacity}" stroke-width="1.3"/>`;
+ const diamond=(x:number,y:number,r=7)=>
+  `<path d="M${x} ${y-r} L${x+r*.65} ${y} L${x} ${y+r} L${x-r*.65} ${y}Z" fill="${accent}" stroke="#f5efff" stroke-opacity=".75" stroke-width=".8"/>`;
+ const ornament=(x:number,y:number,flip=1)=>
+  `<g transform="translate(${x} ${y}) scale(${flip} 1)" fill="none" stroke="#c7c1d2" stroke-opacity=".68" stroke-linecap="round"><path d="M0 100Q12 45 70 24Q44 25 38 6M14 65Q55 56 65 85M39 37Q80 35 92 17" stroke-width="2"/><path d="M23 54L15 37L39 47M61 27L58 8L73 20M54 64L78 58L60 77" stroke-width="1.5"/></g>`;
+ const panel=(x:number,y:number,w:number,h:number,label:string,rows:ProfileRow[],limit=3)=>{
+  let out=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="#0e0d16" fill-opacity=".94" stroke="#bcb0c9" stroke-opacity=".44"/>`;
+  out+=`<path d="M${x+14} ${y+49}H${x+w-14}" stroke="${accent}" stroke-opacity=".35"/>`;
+  out+=text(x+20,y+32,label,16,'#e8e1f1',700);
+  for(let i=0;i<limit;i++){
+   const cy=y+75+i*34, row=rows[i];
+   out+=`<rect x="${x+16}" y="${cy-18}" width="24" height="24" rx="4" fill="${i===0?accent:'#b1a6c2'}" fill-opacity="${i===0?'.75':'.16'}"/>`;
+   out+=text(x+28,cy-1,String(i+1),13,i===0?'#12101c':'#d4c9e2',700,'middle');
+   out+=text(x+49,cy-1,row?shortText(row.name,16):'Belum ada data',13,row?'#f1ebf7':'#81778f',600);
+   if(row)out+=text(x+w-13,cy-1,listeningTime(row.ms),11,accent,600,'end');
+  }
+  return out;
  };
  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="710" viewBox="0 0 1000 710">
- <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${light}"/><stop offset=".55" stop-color="#0c0d17"/><stop offset="1" stop-color="${dark}"/></linearGradient><radialGradient id="glow"><stop stop-color="${accent}" stop-opacity=".25"/><stop offset="1" stop-color="${accent}" stop-opacity="0"/></radialGradient><clipPath id="edge"><rect width="1000" height="710" rx="28"/></clipPath><clipPath id="avatar"><circle cx="112" cy="121" r="66"/></clipPath></defs>
- <g clip-path="url(#edge)" font-family="DejaVu Sans, Segoe UI, Arial, sans-serif"><rect width="1000" height="710" fill="url(#bg)"/><ellipse cx="810" cy="100" rx="420" ry="270" fill="url(#glow)"/><path d="M 25 42 L 25 25 L 42 25 M 958 25 L 975 25 L 975 42 M 25 667 L 25 685 L 42 685 M 958 685 L 975 685 L 975 667" fill="none" stroke="${accent}" stroke-opacity=".7" stroke-width="2"/><path d="M25 216 H975 M25 430 H975" stroke="${accent}" stroke-opacity=".14"/><path d="M415 34 L435 24 L455 34 L435 44 Z M545 34 L565 24 L585 34 L565 44 Z" fill="none" stroke="${accent}" stroke-opacity=".5"/>
- <g visibility="${data.background==='plain'?'hidden':'visible'}" fill="none" stroke="${accent}" stroke-opacity=".085" stroke-width="5"><circle visibility="${data.background==='waves'?'hidden':'visible'}" cx="855" cy="280" r="235"/><circle visibility="${data.background==='waves'?'hidden':'visible'}" cx="855" cy="280" r="180"/><circle visibility="${data.background==='waves'?'hidden':'visible'}" cx="855" cy="280" r="120"/><circle visibility="${data.background==='waves'?'hidden':'visible'}" cx="855" cy="280" r="34"/><path d="M-100 465Q330 70 1080 620M-100 495Q330 100 1080 650M-100 525Q330 130 1080 680M-100 555Q330 160 1080 710"/><path d="M550 80v105m0-80 85-30v100"/><ellipse cx="530" cy="188" rx="22" ry="14"/><ellipse cx="615" cy="178" rx="22" ry="14"/></g>
- <rect x="708" y="16" width="260" height="34" rx="10" fill="#13111f" fill-opacity=".9" stroke="${accent}" stroke-opacity=".28"/>${text(728,39,'HOLLOWFANG  /  MEMBER',15,accent,800)}${text(36,36,'H  /  F',16,accent,800)}
- <circle cx="112" cy="121" r="78" fill="none" stroke="${accent}" stroke-opacity=".3" stroke-width="2"/><circle cx="112" cy="121" r="72" fill="${dark}" stroke="${accent}" stroke-opacity=".9" stroke-width="3"/><path d="M112 34 l8 8 -8 8 -8 -8 Z M112 192 l8 8 -8 8 -8 -8 Z M25 121 l8 8 -8 8 -8 -8 Z M191 121 l8 8 -8 8 -8 -8 Z" fill="${accent}" opacity=".85"/>${avatar||text(83,137,shortText(data.name,2).replace('…','').toUpperCase(),42,accent,700)}
- ${text(208,99,'HOLLOWFANG  /  LISTENER DOSSIER',14,accent,800)}${text(206,140,shortText(data.name,24),37,'#f3f0fa',750)}
- ${text(208,178,`${listeningTime(data.totalMs)}  •  ${data.serverCount} server  •  ${data.trackCount} tracks`,16,'#cdc4db')}
- ${data.bio?text(208,207,shortText(data.bio,64),14,accent):text(208,207,'THE HOLLOW REMEMBERS EVERY SONG',12,'#8f85a8',700)}
- ${panel(32,223,460,203,'I  /  REALMS',data.servers)}${panel(508,223,460,203,'II  /  KINDRED LISTENERS',data.friends)}
- ${panel(32,442,936,213,'III  /  MOST PLAYED RECORDS',data.tracks,true)}
- ${text(34,684,data.demo?'PREVIEW  /  SAMPLE DATA':'HOLLOWFANG  •  PRIVATE WORLD, PUBLIC LEGACY',12,'#a89ab9',700)}<text x="966" y="684" text-anchor="end" fill="${accent}" font-size="12">${data.demo?'SAMPLE ONLY':'LISTENING STATISTICS  /  CRYPT'}</text>
+ <defs>
+  <linearGradient id="night" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#10101a"/><stop offset=".48" stop-color="${light}"/><stop offset="1" stop-color="#070810"/></linearGradient>
+  <radialGradient id="moon"><stop stop-color="${accent}" stop-opacity=".38"/><stop offset="1" stop-color="${accent}" stop-opacity="0"/></radialGradient>
+  <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#39304d"/><stop offset=".55" stop-color="${accent}" stop-opacity=".75"/><stop offset="1" stop-color="#171128"/></linearGradient>
+  <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#faf5ff"/><stop offset=".5" stop-color="#796f85"/><stop offset="1" stop-color="#ddd5e8"/></linearGradient>
+  <clipPath id="edge"><rect width="1000" height="710" rx="18"/></clipPath>
+  <clipPath id="avatar"><circle cx="190" cy="222" r="82"/></clipPath>
+  <filter id="soft"><feGaussianBlur stdDeviation="14"/></filter>
+ </defs>
+ <g clip-path="url(#edge)">
+  <rect width="1000" height="710" fill="url(#night)"/>
+  <ellipse cx="500" cy="130" rx="385" ry="240" fill="url(#moon)" opacity=".42"/>
+  <!-- Gothic pointed stained-glass windows and tracery -->
+  <g fill="#15111f" stroke="#9990a6" stroke-opacity=".5" stroke-width="3">
+   <path d="M23 315V92Q23 34 100 12Q176 34 176 92V315Z"/>
+   <path d="M824 315V92Q824 34 900 12Q977 34 977 92V315Z"/>
+  </g>
+  <g fill="url(#glass)" fill-opacity=".33" stroke="${accent}" stroke-opacity=".46" stroke-width="2">
+   <path d="M35 302V100Q35 51 100 30Q164 51 164 100V302Z"/>
+   <path d="M836 302V100Q836 51 900 30Q964 51 964 100V302Z"/>
+  </g>
+  <g stroke="#d6bfdc" stroke-opacity=".4" fill="none" stroke-width="1.2">
+   <path d="M100 30V302M35 135H164M35 213H164M35 302L164 135M164 302L35 135M35 213L164 100M164 213L35 100"/>
+   <path d="M900 30V302M836 135H964M836 213H964M836 302L964 135M964 302L836 135M836 213L964 100M964 213L836 100"/>
+  </g>
+  <!-- Cathedral battlements, mist, thorn border -->
+  <path d="M0 366L40 355V330H60V315H79V340H102V303H120V340H150V360H181V334H193V300H209V334H235V363H270V346H291V323H307V350H348V372H652V356H679V330H700V347H744V315H763V340H801V367H825V340H853V302H870V345H908V328H924V354L1000 368V442H0Z" fill="#080910" opacity=".73"/>
+  <ellipse cx="490" cy="635" rx="500" ry="95" fill="#aaa1c5" opacity=".055" filter="url(#soft)"/>
+  <rect x="27" y="23" width="946" height="660" rx="9" fill="none" stroke="url(#silver)" stroke-opacity=".64" stroke-width="2"/>
+  <rect x="34" y="30" width="932" height="646" rx="6" fill="none" stroke="${accent}" stroke-opacity=".28"/>
+  ${ornament(45,20)}${ornament(955,20,-1)}
+  ${ornament(45,556)}${ornament(955,556,-1)}
+  ${line(270,78,408,78,.48)}${line(592,78,730,78,.48)}${diamond(260,78,8)}${diamond(740,78,8)}
+  ${text(500,64,'H O L L O W F A N G',32,'#f3ecf9',700,'middle',serif)}
+  ${text(500,90,'E X C L U S I V E   C O M M U N I T Y',11,'#c7b8d4',600,'middle')}
+  ${diamond(500,102,7)}${line(260,106,488,106,.4)}${line(512,106,740,106,.4)}
+  <!-- Main member identity -->
+  <rect x="70" y="128" width="860" height="202" rx="10" fill="#0a0a12" fill-opacity=".79" stroke="#c5bad0" stroke-opacity=".62" stroke-width="1.4"/>
+  <path d="M80 149L80 139L90 139M920 149L920 139L910 139M80 310L80 320L90 320M920 310L920 320L910 320" fill="none" stroke="${accent}" stroke-width="2"/>
+  <circle cx="190" cy="222" r="97" fill="none" stroke="url(#silver)" stroke-width="3" stroke-opacity=".9"/>
+  <circle cx="190" cy="222" r="91" fill="none" stroke="${accent}" stroke-width="2" stroke-opacity=".75"/>
+  <circle cx="190" cy="222" r="82" fill="#15121e"/>
+  ${avatar?avatar.replace(/x="46" y="55" width="132" height="132"/,'x="108" y="140" width="164" height="164"'):text(190,242,shortText(data.name,2).replace('…','').toUpperCase(),48,accent,700,'middle',serif)}
+  ${diamond(190,122,10)}${diamond(190,321,10)}${diamond(91,222,9)}${diamond(289,222,9)}
+  <path d="M307 142H895" stroke="${accent}" stroke-opacity=".3"/>
+  ${text(324,171,'HOLLOWFANG  /  MEMBER DOSSIER',12,accent,800)}
+  ${text(324,220,shortText(data.name,24),39,'#f5eff9',700,'start',serif)}
+  ${text(324,251,data.bio?shortText(data.bio,56):'Still breathing in Hollowfang.',17,'#d8c9e2',500)}
+  <rect x="324" y="272" width="185" height="30" rx="6" fill="${accent}" fill-opacity=".16" stroke="${accent}" stroke-opacity=".62"/>
+  ${diamond(344,286,6)}${text(358,292,'HOLLOWFANG MEMBER',12,'#efe6f9',700)}
+  <rect x="523" y="272" width="145" height="30" rx="6" fill="#17131e" stroke="#e1d8ea" stroke-opacity=".35"/>
+  ${text(595,292,'✧  LISTENER',12,'#e6deef',600,'middle')}
+  <!-- Main music ledger -->
+  <rect x="70" y="348" width="860" height="92" rx="9" fill="#12101a" fill-opacity=".93" stroke="url(#silver)" stroke-opacity=".58"/>
+  <path d="M332 360V427M575 360V427" stroke="${accent}" stroke-opacity=".3"/>
+  ${text(95,374,'TOTAL LISTENING',13,'#c4b7d1',700)}
+  ${text(96,415,listeningTime(data.totalMs),34,'#f7f2fa',700,'start',serif)}
+  ${text(355,374,'REALMS VISITED',13,'#c4b7d1',700)}
+  ${text(355,415,String(data.serverCount),34,accent,700,'start',serif)}
+  ${text(598,374,'TRACKS DISCOVERED',13,'#c4b7d1',700)}
+  ${text(598,415,String(data.trackCount),34,accent,700,'start',serif)}
+  ${diamond(906,393,17)}
+  <!-- Three genuine listener-statistic tables; no fake XP or ranking -->
+  ${panel(70,458,273,170,'I  /  REALMS',data.servers)}
+  ${panel(363,458,273,170,'II  /  KINDRED',data.friends)}
+  ${panel(656,458,274,170,'III  /  MUSIC',data.tracks)}
+  ${line(170,654,438,654,.5)}${line(562,654,830,654,.5)}${diamond(500,654,10)}
+  ${text(500,660,data.demo?'HOLLOWFANG  /  DEMO PREVIEW':'HOLLOWFANG  /  THE HOLLOW REMEMBERS',12,'#d6c8e2',700,'middle')}
+  ${text(500,697,'MUSIC LISTENING PROFILE   •   CRYPT',10,'#a99dbb',600,'middle')}
  </g></svg>`;
+
  return sharp(Buffer.from(svg)).png().toBuffer();
 }
