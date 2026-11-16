@@ -4,6 +4,7 @@ export type VoiceStatusOptions = {
  put: (channelId: string, status: string | null) => Promise<unknown>;
  canWrite: (guildId: string, channelId: string, clearing: boolean) => boolean;
  onError?: (error: unknown) => void;
+ onDebug?: (message: string) => void;
  enabled?: boolean;
  debounceMs?: number;
  retryMs?: number;
@@ -79,15 +80,18 @@ export class VoiceStatusManager {
   if (desired === undefined) return;
   // Unknown initial status is deliberately not assumed empty. CHANNEL_INFO
   // supplies the initial snapshot; a known manual status always wins.
-  if (state.observed === undefined || (state.observed !== null && state.observed !== state.managed)) return;
-  if (desired === null && state.managed === undefined || desired === state.observed) return;
+  if (state.observed === undefined) { this.options.onDebug?.('skip: no CHANNEL_INFO observation channel='+state.channel); return; }
+  if (state.observed !== null && state.observed !== state.managed) { this.options.onDebug?.('skip: manual status preserved channel='+state.channel); return; }
+  if (desired === null && state.managed === undefined || desired === state.observed) { this.options.onDebug?.('skip: status unchanged or not owned channel='+state.channel); return; }
   try {
    if (!this.options.canWrite(state.guild, state.channel, desired === null)) {
     throw Object.assign(new Error('Voice status: unsupported channel, disconnected, or missing Set Voice Channel Status / Manage Channels permission.'), {code: 'VOICE_STATUS_UNAVAILABLE'});
    }
    const revision = state.revision;
    state.sending = desired;
+   this.options.onDebug?.('PUT status channel='+state.channel+' value='+JSON.stringify(desired));
    await this.options.put(state.channel, desired);
+   this.options.onDebug?.('PUT success channel='+state.channel);
    if (revision === state.revision) {
     state.observed = desired;
     state.managed = desired ?? undefined;
