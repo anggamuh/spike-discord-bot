@@ -42,8 +42,11 @@ export class VoiceStatusManager {
   this.observations.set(channel, status);
   const state = this.states.get(channel);
   if (!state) return;
-  // A later manual edit must never be reclaimed by startup takeover.
-  if (state.observed !== undefined && state.observed !== status) state.initialTakeoverAvailable = false;
+  // Discord can send an empty CHANNEL_INFO snapshot followed by the actual
+  // existing status before the first song starts. Do not revoke the one-time
+  // startup takeover for that initial snapshot race. Once a bot write succeeds,
+  // initialTakeoverAvailable is already consumed and later manual edits remain
+  // protected by the managed/observed ownership check below.
   state.observed = status;
   // Gateway acknowledgement can precede the HTTP response.
   if (status !== state.sending && status !== state.managed) {
@@ -96,7 +99,7 @@ export class VoiceStatusManager {
   // A restarted bot cannot prove ownership of an existing Discord status.
   // Only an explicitly allowlisted channel may be adopted once per process.
   // Defer the authorization check: request() may run before music starts.
-  // A changed gateway status still revokes this one-time eligibility.
+  // Pre-playback gateway snapshots do not consume or revoke the one-time eligibility.
   if (state.initialTakeoverAvailable && desired !== null &&
       this.options.allowInitialTakeover?.(state.guild, state.channel) === true) {
    state.initialTakeoverAvailable = false;
