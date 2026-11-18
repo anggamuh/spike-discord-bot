@@ -38,7 +38,9 @@ export class VoiceStatusManager {
   // Discord may normalize surrounding whitespace on the status we PUT.
   // Compare canonical values so our own gateway acknowledgement is not
   // mistaken for a manual edit, while genuinely different edits stay protected.
-  status = status?.trim() ?? null;
+  // Discord acknowledges clearing a status with an empty string, while REST
+  // sends null. Treat both (including whitespace-only echoes) as no status.
+  status = status?.trim() || null;
   this.observations.set(channel, status);
   const state = this.states.get(channel);
   if (!state) return;
