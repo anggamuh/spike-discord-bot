@@ -6,6 +6,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {MusicPersistence,type SavedTrack} from '../src/music-persistence.js';
 import {renderProfile,discordAvatar,shortText,listeningTime} from '../src/music-profile.js';
+import {buildProgress} from '../src/hollowfang-xp.js';
 import {Music} from '../src/music.js';
 const u='111111111111111111',v='222222222222222222',w='333333333333333333';
 const track:SavedTrack={identifier:'a',title:'Song',author:'Artist',url:'',length:120000,requester:u};
@@ -28,7 +29,16 @@ test('Hollowfang card ignores cross-server realms and highlights actual music da
  assert.notDeepEqual(one,different,'Top music tracks must remain visible in the design');
 });
 
+test('Hollowfang member card visually responds to earned XP and rank',async()=>{
+ const common={name:'Hollowfang member',totalMs:60_000,trackCount:1,serverCount:1,servers:[],friends:[],tracks:[]};
+ const novice=await renderProfile({...common,progress:buildProgress({listeningMs:60_000,tracks:1,friends:0,chatXp:0,chatMessages:0})});
+ const veteran=await renderProfile({...common,progress:buildProgress({listeningMs:36_000_000,tracks:12,friends:2,chatXp:12000,chatMessages:100})});
+ assert.notDeepEqual(novice,veteran,'Level, XP bar, rank, and badge must change when progress changes');
+ const meta=await sharp(veteran).metadata();
+ assert.equal(meta.width,1000);assert.equal(meta.height,710);
+});
+
 test('renderer accepts decoded avatar and falls back on corrupt image',async()=>{const data={name:'Test',totalMs:5000,serverCount:1,trackCount:1,servers:[{name:'W'.repeat(150),ms:5000}],friends:[],tracks:[{name:'<title>&',detail:'Artist',ms:5000}]};const avatar=await sharp({create:{width:32,height:32,channels:4,background:'#ff0000'}}).png().toBuffer();for(const image of [avatar,Buffer.from('invalid')])assert.equal((await sharp(await renderProfile({...data,avatar:image})).metadata()).width,1000);});
 test('avatar fetch rejects non-Discord hosts and oversized responses without following redirects',async()=>{let calls=0;const request=async(_u:any,init:any)=>{calls++;assert.equal(init.redirect,'error');return new Response('x',{headers:{'content-length':'3000000'}});};assert.equal(await discordAvatar('http://localhost/a',request as any),undefined);assert.equal(await discordAvatar('https://cdn.discordapp.com.attacker.test/avatars/a',request as any),undefined);assert.equal(calls,0);assert.equal(await discordAvatar('https://cdn.discordapp.com/embed/avatars/0.png',request as any),undefined);assert.equal(calls,1);});
 test('profile formatting truncates width and distinguishes days/hours',()=>{assert.match(shortText('W'.repeat(100),22),/…$/);assert.equal(listeningTime(38*3600000),'1 hari 14j');assert.equal(listeningTime(10000),'<1 menit');});
-test('profile command renders only caller data without voice or holding playback serial lock',async()=>{let requested='',response:any;const owner:any={persistence:{profileSettings:()=>({theme:'red',background:'vinyl',bio:''}),listeningProfile:(id:string)=>{requested=id;return {total:{ms:0,servers:0,tracks:0},servers:[],friends:[],tracks:[]};}},client:{guilds:{cache:new Map()},users:{fetch:async()=>{throw Error('unneeded');}}},profile:(Music.prototype as any).profile};const i:any={commandName:'profile',inGuild:()=>true,guild:{id:'g'},user:{id:u,username:'Angga',displayAvatarURL:()=> 'http://localhost/blocked'},options:{getString:()=> 'red'},editReply:async(r:any)=>{response=r;}};await (Music.prototype as any).handle.call(owner,i);assert.equal(requested,u);assert.equal(response.files[0].name,'manuk-profile.png');assert.equal(response.components[0].toJSON().type,12);assert.equal(response.components.length,1,'Public profile only contains the image gallery, without an extra chat caption');assert.deepEqual(response.allowedMentions.parse,[]);});
+test('profile command renders only caller data without voice or holding playback serial lock',async()=>{let requested='',response:any;const owner:any={persistence:{profileSettings:()=>({theme:'red',background:'vinyl',bio:''}),progress:()=>buildProgress({listeningMs:0,tracks:0,friends:0,chatXp:0,chatMessages:0}),listeningProfile:(id:string)=>{requested=id;return {total:{ms:0,servers:0,tracks:0},servers:[],friends:[],tracks:[]};}},client:{guilds:{cache:new Map()},users:{fetch:async()=>{throw Error('unneeded');}}},profile:(Music.prototype as any).profile};const i:any={commandName:'profile',inGuild:()=>true,guild:{id:'g'},guildId:'g',user:{id:u,username:'Angga',displayAvatarURL:()=> 'http://localhost/blocked'},options:{getString:()=> 'red'},editReply:async(r:any)=>{response=r;}};await (Music.prototype as any).handle.call(owner,i);assert.equal(requested,u);assert.equal(response.files[0].name,'manuk-profile.png');assert.equal(response.components[0].toJSON().type,12);assert.equal(response.components.length,1,'Public profile only contains the image gallery, without an extra chat caption');assert.deepEqual(response.allowedMentions.parse,[]);});
