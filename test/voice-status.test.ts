@@ -103,10 +103,12 @@ test('late voice readiness permits one-time takeover after state creation',async
 test('CHANNEL_INFO empty snapshot followed by stale status does not disable active-channel takeover',async()=>{
  let ready=false;
  const f=fixture({allowInitialTakeover:(_guild,channel)=>ready&&channel==='v'});
- // A startup update creates the per-channel state before Lavalink is ready.
+ // A startup update creates the per-channel state before Lavalink is ready,
+ // while Discord already has a previous status.
+ f.manager.observe('v','old song from previous bot process');
  await f.manager.update('g','v','warming up');
  assert.deepEqual(f.calls,[]);
- // Initial CHANNEL_INFO reports empty; later update reports a stale music title.
+ // A delayed gateway snapshot arrives with a different old title.
  f.manager.observe('v','stale song from previous bot process');
  ready=true;
  await f.manager.update('g','v','Gravits — Artist');
