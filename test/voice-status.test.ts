@@ -100,6 +100,25 @@ test('late voice readiness permits one-time takeover after state creation',async
  await f.manager.shutdown();
 });
 
+test('CHANNEL_INFO empty snapshot followed by stale status does not disable active-channel takeover',async()=>{
+ let ready=false;
+ const f=fixture({allowInitialTakeover:(_guild,channel)=>ready&&channel==='v'});
+ // A startup update creates the per-channel state before Lavalink is ready.
+ await f.manager.update('g','v','warming up');
+ assert.deepEqual(f.calls,[]);
+ // Initial CHANNEL_INFO reports empty; later update reports a stale music title.
+ f.manager.observe('v','stale song from previous bot process');
+ ready=true;
+ await f.manager.update('g','v','Gravits — Artist');
+ assert.deepEqual(f.calls,[['v','Gravits — Artist']]);
+ await f.manager.update('g','v','Another Track — Artist');
+ assert.deepEqual(f.calls,[['v','Gravits — Artist'],['v','Another Track — Artist']]);
+ f.manager.observe('v','manual status after takeover');
+ await f.manager.update('g','v','Should Be Blocked');
+ assert.equal(f.calls.length,2);
+ await f.manager.shutdown();
+});
+
 test('gateway acknowledgement before HTTP response preserves ownership; manual edit in flight wins',async()=>{
  let manager!:VoiceStatusManager;
  const f=fixture({put:async(c,s)=>{manager.observe(c,s);}});manager=f.manager;
