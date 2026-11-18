@@ -1,5 +1,10 @@
 import {SlashCommandBuilder,ChannelType} from 'discord.js';
 export const commands=[
+ new SlashCommandBuilder().setName('level').setDescription('Lihat XP, level dan Hollowfang rank dari aktivitas chat dan musik.').setDMPermission(false)
+ .addUserOption(o=>o.setName('member').setDescription('Member yang ingin dilihat; default dirimu')),
+ new SlashCommandBuilder().setName('achievements').setDescription('Lihat badge Hollowfang yang sudah dibuka atau masih terkunci.').setDMPermission(false)
+ .addUserOption(o=>o.setName('member').setDescription('Member yang ingin dilihat; default dirimu')),
+ new SlashCommandBuilder().setName('xptop').setDescription('Leaderboard XP member Hollowfang.').setDMPermission(false),
  new SlashCommandBuilder().setName('profileset').setDescription('Simpan tema, aksen, latar, dan bio profil pribadi.').setDMPermission(false)
  .addStringOption(o=>o.setName('theme').setDescription('Tema warna').addChoices({name:'Merah',value:'red'},{name:'Ungu',value:'purple'},{name:'Biru',value:'blue'}))
  .addStringOption(o=>o.setName('background').setDescription('Pola latar').addChoices({name:'Vinyl',value:'vinyl'},{name:'Gelombang',value:'waves'},{name:'Polos',value:'plain'}))
