@@ -67,6 +67,9 @@ test('existing sampled listening yields music XP and achievements without writin
   assert.ok(progress.achievements.find(a=>a.id==='first-echo')!.unlocked);
   assert.ok(progress.achievements.find(a=>a.id==='kindred-soul')!.unlocked);
   assert.equal(db.progress(other,member).listeningMs,15_000);
+  assert.equal(db.listeningProfile(member,guild).total.ms,60_000);
+  assert.equal(db.listeningProfile(member,other).total.ms,15_000);
+  assert.equal(db.listeningProfile(member).total.ms,75_000);
   assert.equal(db.xpLeaderboard(guild)[0]!.xp,1);
   assert.deepEqual(db.xpLeaderboard(other).map(x=>x.xp),[0]);
  }finally{db.close();rmSync(dir,{recursive:true,force:true});}
