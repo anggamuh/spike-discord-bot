@@ -1,7 +1,8 @@
 import sharp from 'sharp';
+import {buildProgress,type ProgressSnapshot} from './hollowfang-xp.js';
 
 export type ProfileRow={name:string;ms:number;detail?:string};
-export type ProfileData={name:string;avatar?:Buffer;totalMs:number;serverCount:number;trackCount:number;servers:ProfileRow[];friends:ProfileRow[];tracks:ProfileRow[];theme?:'red'|'purple'|'blue';background?:'vinyl'|'waves'|'plain';accent?:string;bio?:string;demo?:boolean};
+export type ProfileData={name:string;avatar?:Buffer;totalMs:number;serverCount:number;trackCount:number;servers:ProfileRow[];friends:ProfileRow[];tracks:ProfileRow[];theme?:'red'|'purple'|'blue';background?:'vinyl'|'waves'|'plain';accent?:string;bio?:string;demo?:boolean;progress?:ProgressSnapshot};
 const xml=(s:string)=>s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]!));
 export function shortText(text:string,max:number){const chars=Array.from(text.replace(/\s+/g,' ').trim());let units=0,result='';for(const c of chars){const cost=/[\u2e80-\uffff]/u.test(c)?2:/[MW@]/.test(c)?1.4:1;if(units+cost>max)return result+'…';result+=c;units+=cost;}return result;}
 export function listeningTime(ms:number){const minutes=Math.floor(Math.max(0,ms)/60000),hours=Math.floor(minutes/60),days=Math.floor(hours/24);return days?`${days} hari ${hours%24}j`:hours?`${hours}j ${minutes%60}m`:minutes?`${minutes} menit`:ms>0?'<1 menit':'0 menit';}
@@ -14,6 +15,8 @@ export async function discordAvatar(url:string,request:typeof fetch=fetch):Promi
 }
 export async function renderProfile(data:ProfileData):Promise<Buffer>{
  const palettes={red:['#251320','#100d15','#e8a5b5'],purple:['#1b1830','#0a0b14','#bd9aff'],blue:['#142431','#090f19','#a6d1e6']};
+ const xp=data.progress??buildProgress({listeningMs:data.totalMs,tracks:data.trackCount,friends:data.friends.length,chatXp:0,chatMessages:0});
+ const unlocked=xp.achievements.filter(a=>a.unlocked);
  const [light,dark,defaultAccent]=palettes[data.theme??'purple'];const accent=data.accent&&/^#[0-9a-f]{6}$/i.test(data.accent)?data.accent:defaultAccent;let avatar='';
  if(data.avatar){try{const png=await sharp(data.avatar,{limitInputPixels:1048576}).resize(132,132,{fit:'cover'}).png().toBuffer();avatar=`<image x="46" y="55" width="132" height="132" href="data:image/png;base64,${png.toString('base64')}" clip-path="url(#avatar)"/>`;}catch{}}
 
@@ -116,20 +119,22 @@ export async function renderProfile(data:ProfileData):Promise<Buffer>{
   ${text(324,220,shortText(data.name,24),39,'#f5eff9',700,'start',serif)}
   ${text(324,251,data.bio?shortText(data.bio,56):'Still breathing in Hollowfang.',17,'#d8c9e2',500)}
   <rect x="324" y="272" width="185" height="30" rx="6" fill="${accent}" fill-opacity=".16" stroke="${accent}" stroke-opacity=".62"/>
-  ${diamond(344,286,6)}${text(358,292,'HOLLOWFANG MEMBER',12,'#efe6f9',700)}
+  ${diamond(344,286,6)}${text(358,292,shortText(xp.rank,23),12,'#efe6f9',700)}
   <rect x="523" y="272" width="145" height="30" rx="6" fill="#17131e" stroke="#e1d8ea" stroke-opacity=".35"/>
-  ${text(595,292,'✧  MUSIC SOUL',12,'#e6deef',600,'middle')}
+  ${text(595,292,unlocked.length?'✧  '+shortText(unlocked[0]!.name,15):'✧  NEW BLOOD',12,'#e6deef',600,'middle')}
   <!-- Main music ledger -->
   <rect x="70" y="348" width="860" height="92" rx="9" fill="#12101a" fill-opacity=".93" stroke="url(#silver)" stroke-opacity=".58"/>
   <path d="M82 356H918" stroke="url(#shimmer)" stroke-opacity=".5"/>
-  <path d="M373 360V427M565 360V427" stroke="${accent}" stroke-opacity=".3"/>
-  ${text(95,374,'TOTAL LISTENING',13,'#c4b7d1',700)}
-  ${text(96,415,listeningTime(data.totalMs),34,'#f7f2fa',700,'start',serif)}
-  ${text(397,374,'TRACKS PLAYED',13,'#c4b7d1',700)}
-  ${text(397,415,String(data.trackCount),34,accent,700,'start',serif)}
-  ${text(590,374,'MOST LISTENED TRACK',13,'#c4b7d1',700)}
-  ${text(590,411,shortText(data.tracks[0]?.name??'No tracks yet',22),19,'#f4eaff',700)}
-  ${text(590,429,data.tracks[0]?listeningTime(data.tracks[0].ms):'Start your music journey',11,accent,600)}
+  <path d="M285 360V427M570 360V427" stroke="${accent}" stroke-opacity=".3"/>
+  ${text(95,374,'HOLLOWFANG LEVEL',13,'#c4b7d1',700)}
+  ${text(97,418,String(xp.level),38,'#f7f2fa',700,'start',serif)}
+  ${text(310,374,'TOTAL XP',13,'#c4b7d1',700)}
+  ${text(310,406,xp.xp.toLocaleString('id-ID'),25,accent,700,'start',serif)}
+  <rect x="310" y="418" width="236" height="8" rx="4" fill="#292034" stroke="${accent}" stroke-opacity=".45"/>
+  <rect x="310" y="418" width="${236*Math.min(1,xp.currentLevelXp/xp.nextLevelXp)}" height="8" rx="4" fill="url(#shimmer)"/>
+  ${text(589,374,'TIME IN HOLLOWFANG',13,'#c4b7d1',700)}
+  ${text(590,409,listeningTime(xp.listeningMs),26,'#f4eaff',700,'start',serif)}
+  ${text(590,427,`${xp.tracks} songs  •  ${unlocked.length} achievements`,12,accent,600)}
   ${diamond(906,393,17)}
   <!-- Hollowfang-only stats: music and companions, without cross-server realms. -->
   ${panel(70,458,417,170,'I  /  KINDRED LISTENERS',data.friends)}
