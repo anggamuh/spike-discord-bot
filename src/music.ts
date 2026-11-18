@@ -11,7 +11,7 @@ import {Connectors,Shoukaku,type Player,type Track} from 'shoukaku';
 import {MusicError,MusicSession,Serial,identifier,tracksFrom,duration} from './music-core.js';
 import {musicNotice,playerView,queueView,trackAnnouncement,musicV2Flags} from './music-ui.js';
 import {MusicPersistence,restoredTrack,type SavedTrack,type ProfileSettings} from './music-persistence.js';
-export const musicNames=new Set(['play','skip','pause','resume','queue','stop','nowplaying','volume','autoplay','loop','remove','move','jump','shuffle','clear','voteskip','history','favorite','playlist','dj','panel','playnext','seek','replay','fairqueue','savequeue','status','musicsettings','247','wrapped','profile','profileset','top']);
+export const musicNames=new Set(['play','skip','pause','resume','queue','stop','nowplaying','volume','autoplay','loop','remove','move','jump','shuffle','clear','voteskip','history','favorite','playlist','dj','panel','playnext','seek','replay','fairqueue','savequeue','status','musicsettings','247','wrapped','profile','profileset','top','level','achievements','xptop']);
 const sourceError=`Lavalink belum tersambung di ${process.env.LAVALINK_URL??'127.0.0.1:2333'}. Pastikan terminal npm run lavalink tetap berjalan.`;
 const boundedInteger=(name:string,fallback:number,min:number,max:number)=>{const parsed=Number(process.env[name]??fallback);return Number.isFinite(parsed)?Math.max(min,Math.min(max,Math.trunc(parsed))):fallback;};
 type Panel={interaction:ChatInputCommandInteraction|MessageComponentInteraction;ownerId:string;guildId:string;session:MusicSession;mode:'player'|'queue';page:number;stop:()=>void;timer?:NodeJS.Timeout};
@@ -68,6 +68,14 @@ export class Music {
   this.shoukaku.on('error',(_name,error)=>{reportMusicError('NODE',error);});
   this.shoukaku.on('close',()=>{for(const guild of this.sessions.keys())void this.serial.run(guild,()=>this.dispose(guild)).catch(()=>{});});
   client.on(Events.InteractionCreate,i=>{if(i.isMessageComponent()&&i.customId.startsWith('public:'))void this.publicButton(i).catch(()=>{});});
+  client.on(Events.MessageCreate,message=>{
+   if(!message.inGuild()||message.author.bot||message.webhookId||message.system)return;
+   // Restrict XP collection to the explicitly configured Hollowfang server.
+   const hollowfang=process.env.DISCORD_GUILD_ID;
+   if(!hollowfang||message.guildId!==hollowfang)return;
+   try{this.persistence.awardChatXP(message.guildId,message.author.id,message.createdTimestamp);}
+   catch(error){reportMusicError('HOLLOWFANG XP',error);}
+  });
   client.on(Events.VoiceStateUpdate,(old,state)=>{
    const guild=state.guild.id,s=this.sessions.get(guild);if(!s)return;
    if(old.channelId===s.channelId||state.channelId===s.channelId)this.profileAudience.delete(s);
@@ -112,8 +120,30 @@ export class Music {
   const result=this.persistence.listeningProfile(i.user.id),settings=this.persistence.profileSettings(i.user.id);
   const friends=await Promise.all(result.friends.map(async row=>{const user=await this.client.users.fetch(row.id).catch(()=>undefined);return {name:user?.globalName??user?.username??'Pengguna tidak tersedia',ms:row.ms};}));
   const avatar=await discordAvatar(i.user.displayAvatarURL({extension:'png',size:256}));
-  const png=await renderProfile({name:i.user.globalName??i.user.username,avatar,totalMs:result.total.ms,serverCount:result.total.servers,trackCount:result.total.tracks,servers:result.servers.map(r=>({name:this.client.guilds.cache.get(r.id)?.name??'Server tidak tersedia',ms:r.ms})),friends,tracks:result.tracks.map(t=>({name:t.title,detail:t.author,ms:t.ms})),...settings,theme:(i.options.getString('theme')??settings.theme) as 'red'|'purple'|'blue'});
+  const progress=this.persistence.progress(i.guildId!,i.user.id);
+  const png=await renderProfile({name:i.user.globalName??i.user.username,avatar,totalMs:result.total.ms,serverCount:result.total.servers,trackCount:result.total.tracks,servers:result.servers.map(r=>({name:this.client.guilds.cache.get(r.id)?.name??'Server tidak tersedia',ms:r.ms})),friends,tracks:result.tracks.map(t=>({name:t.title,detail:t.author,ms:t.ms})),progress,...settings,theme:(i.options.getString('theme')??settings.theme) as 'red'|'purple'|'blue'});
   await i.editReply({components:[new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://manuk-profile.png').setDescription('Hollowfang member profile'))],files:[new AttachmentBuilder(png,{name:'manuk-profile.png'})],allowedMentions:{parse:[]}});
+ }
+ private async hollowfangProgress(i:ChatInputCommandInteraction){
+  const guild=i.guildId!;
+  if(i.commandName==='xptop'){
+   const rows=await Promise.all(this.persistence.xpLeaderboard(guild).map(async(r,n)=>{
+    const user=await this.client.users.fetch(r.user).catch(()=>undefined);
+    return `${n+1}. **${escapeMarkdown(user?.globalName??user?.username??'Member').slice(0,65)}** · ${r.xp.toLocaleString('id-ID')} XP`;
+   }));
+   await i.editReply({components:[musicNotice(`## HOLLOWFANG · XP LEADERBOARD\n${rows.join('\n')||'Belum ada progres.'}`)],allowedMentions:{parse:[]}});
+   return;
+  }
+  const target=i.options.getUser('member')??i.user;
+  const p=this.persistence.progress(guild,target.id);
+  const display=escapeMarkdown(target.globalName??target.username).slice(0,80);
+  if(i.commandName==='level'){
+   const percent=Math.floor(p.currentLevelXp/p.nextLevelXp*100);
+   await i.editReply({components:[musicNotice(`## ${display} · HOLLOWFANG LEVEL\n**LEVEL ${p.level}** · ${p.rank}\n**XP:** ${p.xp.toLocaleString('id-ID')} total · ${p.currentLevelXp}/${p.nextLevelXp} menuju level berikutnya (${percent}%)\n**Dari musik:** ${Math.floor(p.listeningMs/60000)} XP · **Dari chat:** ${p.chatXp} XP\n**Badge:** ${p.achievements.filter(a=>a.unlocked).length}/${p.achievements.length} terbuka`)],allowedMentions:{parse:[]}});
+   return;
+  }
+  const lines=p.achievements.map(a=>`${a.unlocked?'✦':'◇'} **${a.name}** — ${a.description} ${a.unlocked?'· Terbuka':'· Terkunci'}`);
+  await i.editReply({components:[musicNotice(`## ${display} · HOLLOWFANG ACHIEVEMENTS\n${lines.join('\n')}`)],allowedMentions:{parse:[]}});
  }
  private async profileSettings(i:ChatInputCommandInteraction){
   const patch:Partial<ProfileSettings>={};
@@ -350,6 +380,7 @@ export class Music {
  }
  async handle(i:ChatInputCommandInteraction){
   if(!i.inGuild()||!i.guild)throw new MusicError('Command musik hanya bisa dipakai di server.');
+  if(['level','achievements','xptop'].includes(i.commandName)){await this.hollowfangProgress(i);return;}
   if(i.commandName==='profile'){await this.profile(i);return;}
   if(i.commandName==='profileset'){await this.profileSettings(i);return;}
   if(i.commandName==='top'){await this.leaderboard(i);return;}
