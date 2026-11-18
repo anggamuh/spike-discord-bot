@@ -265,6 +265,28 @@ export class Music {
    catch{s.lastError='Autoplay belum menemukan lagu lain yang tersedia.';}
   }
  }
+ private async skipWithAutoplay(guild:string,s:MusicSession){
+  const skipped=s.current;
+  await s.skip();
+  // A queued song always has priority. Only search when skip leaves playback empty.
+  if(!skipped||!s.autoplay||s.closed||s.current||s.queue.length||this.sessions.get(guild)!==s)return;
+  try{
+   const node=this.shoukaku.getIdealNode();
+   if(!node){s.lastError='Autoplay menunggu koneksi Lavalink.';return;}
+   const recent=this.persistence.history(guild);
+   const candidate=await recommendTrack(q=>node.rest.resolve(q),skipped,recent.map(t=>t.title),s.autoplayStyle,recent.map(t=>t.author));
+   // Ignore late results if the session was stopped or somebody queued a song.
+   if(this.sessions.get(guild)!==s||s.closed||!s.autoplay||s.current||s.queue.length)return;
+   if(!candidate){s.lastError='Autoplay belum menemukan lagu mirip yang tersedia.';console.warn('[MUSIC AUTOPLAY SKIP] Tidak ada kandidat baru.');return;}
+   candidate.pluginInfo={...(candidate.pluginInfo as Record<string,unknown>),requester:'autoplay'};
+   s.add([candidate]);
+   console.log(`[MUSIC AUTOPLAY SKIP] source=${candidate.info.sourceName} title=${candidate.info.title.slice(0,100)}`);
+   await s.next();
+  }catch(error){
+   s.lastError='Autoplay belum berhasil mencari lagu pengganti.';
+   reportMusicError('AUTOPLAY SKIP',error);
+  }
+ }
  private publicCard(s:MusicSession){
   const card=playerView(s,(s.player as Player).volume).toJSON();
   const visit=(o:any)=>{if(!o||typeof o!=='object')return;if(typeof o.custom_id==='string')o.custom_id='public:'+o.custom_id;for(const value of Object.values(o))if(Array.isArray(value))value.forEach(visit);else if(value&&typeof value==='object')visit(value);};visit(card);return card;
@@ -302,7 +324,7 @@ export class Music {
     else if(action==='music:skip'){
      if(!s.current)throw new MusicError('Tidak ada lagu aktif.');
      if(!dj){const vote=this.castVote(guild,s,s.channelId,i.user.id);result=`Vote skip: ${vote.votes}/${vote.needed}.`;if(!vote.passed)return;}
-     this.votes.delete(guild);await s.skip();result='Lagu dilewati.';
+     this.votes.delete(guild);await this.skipWithAutoplay(guild,s);result=s.current?'Lagu dilewati; musik dilanjutkan.':'Lagu dilewati; tidak ada rekomendasi tersedia.';
     }else{
      if(this.persistence.djRole(guild)&&!dj)throw new MusicError('Kontrol ini hanya untuk DJ/admin.');
      if(action==='music:savequeue'){if(!dj)throw new MusicError('Simpan playlist server memerlukan DJ/admin.');const name=`Antrean ${Date.now()}`;this.saveQueue(guild,s,name,i.user.id);result=`Antrean disimpan sebagai ${name}.`; }
@@ -462,14 +484,14 @@ export class Music {
    if(c==='seek'||c==='replay'){const position=c==='replay'?0:parsePosition(i.options.getString('position',true));await s.seek(position);this.meterReset(s);await this.refreshPanel(guild.id);await i.editReply({components:[musicNotice(c==='replay'?'Lagu diulang dari awal.':`Posisi diubah ke ${duration(position)}.`)]});return;}
    if(c==='fairqueue'){const mode=i.options.getString('mode',true);if(mode!=='status'){s.fair=mode==='on';s.rebalance();}await this.refreshPanel(guild.id);await i.editReply({components:[musicNotice(`Antrean adil ${s.fair?'ON':'OFF'}. Saat ON, request bergantian per pendengar; playnext tetap didahulukan.`)]});return;}
 
-   if(c==='skip'){let vote:{votes:number;needed:number;passed:boolean}|undefined;if(!dj){vote=this.castVote(guild.id,s,voice.id,i.user.id);if(!vote.passed){await i.editReply({components:[musicNotice(`Vote skip: ${vote.votes}/${vote.needed}.`)]});return;}this.votes.delete(guild.id);}const skipped=s.current?.info.title??'Track';await s.skip();this.save(guild.id,s);this.armIdle(guild.id,s);await i.editReply({components:[musicNotice(dj?`Dilewati DJ: ${escapeMarkdown(skipped).slice(0,100)}`:`Vote berhasil (${vote!.votes}/${vote!.needed}); ${escapeMarkdown(skipped).slice(0,80)} dilewati.`)]});await this.refreshPanel(guild.id);return;}
+   if(c==='skip'){let vote:{votes:number;needed:number;passed:boolean}|undefined;if(!dj){vote=this.castVote(guild.id,s,voice.id,i.user.id);if(!vote.passed){await i.editReply({components:[musicNotice(`Vote skip: ${vote.votes}/${vote.needed}.`)]});return;}this.votes.delete(guild.id);}const skipped=s.current?.info.title??'Track';await this.skipWithAutoplay(guild.id,s);this.save(guild.id,s);this.armIdle(guild.id,s);await i.editReply({components:[musicNotice(dj?`Dilewati DJ: ${escapeMarkdown(skipped).slice(0,100)}`:`Vote berhasil (${vote!.votes}/${vote!.needed}); ${escapeMarkdown(skipped).slice(0,80)} dilewati.`)]});await this.refreshPanel(guild.id);return;}
    if(c==='pause'||c==='resume'){if(c==='resume'&&!s.current&&s.queue.length){await s.next();this.armIdle(guild.id,s);await this.refreshPanel(guild.id);await i.editReply({components:[musicNotice('Antrean tersimpan mulai diputar.')]});return;}if(!s.current)throw new MusicError('Tidak ada lagu aktif.');await s.setPaused(c==='pause');this.meterReset(s);await i.editReply({components:[musicNotice(c==='pause'?'Playback paused.':'Playback resumed.')]});await this.refreshPanel(guild.id);return;}
    if(c==='volume'){const value=i.options.getInteger('level',true);await player.setGlobalVolume(value);this.save(guild.id,s);await i.editReply({components:[musicNotice(`Volume · ${value}%`)]});await this.refreshPanel(guild.id);return;}
     if(c==='autoplay'||c==='loop'){const mode=i.options.getString('mode',true);if(mode!=='status'){if(c==='autoplay'){s.autoplay=mode==='on';const style=i.options.getString('style');if(style)s.autoplayStyle=style as 'artist'|'mix';}else s.loop=mode as 'off'|'song'|'queue';}this.save(guild.id,s);await i.editReply({components:[musicNotice(c==='autoplay'?`Autoplay ${s.autoplay?'aktif':'nonaktif'} (${s.autoplayStyle}).`:`Loop ${s.loop}.`)]});await this.refreshPanel(guild.id);return;}
     if(c==='shuffle'){s.fair=false;const n=s.shuffle();this.save(guild.id,s);await i.editReply({components:[musicNotice(`${n} lagu diacak. Antrean adil OFF untuk mempertahankan urutan acak.`)]});return;}
     if(c==='clear'){const n=s.queue.length;s.queue=[];s.autoplay=false;this.save(guild.id,s);await i.editReply({components:[musicNotice(`${n} lagu menunggu dihapus.`)]});return;}
     if(c==='remove'||c==='move'||c==='jump'){const from=i.options.getInteger(c==='move'?'from':'position',true)-1;if(from<0||from>=s.queue.length)throw new MusicError('Posisi lagu tidak tersedia.');if(c==='remove'){const [t]=s.queue.splice(from,1);this.save(guild.id,s);await i.editReply({components:[musicNotice(`Dihapus: ${escapeMarkdown(t!.info.title).slice(0,100)}`)]});return;}if(c==='move'){s.fair=false;const to=i.options.getInteger('to',true)-1;if(to<0||to>=s.queue.length)throw new MusicError('Posisi tujuan tidak tersedia.');const [t]=s.queue.splice(from,1);s.queue.splice(to,0,t!);this.save(guild.id,s);await i.editReply({components:[musicNotice('Posisi lagu diperbarui. Antrean adil OFF untuk mempertahankan urutan manual.')]});return;}const [t]=s.queue.splice(from,1);s.queue.unshift(t!);await s.skip();this.save(guild.id,s);await i.editReply({components:[musicNotice('Melompat ke lagu pilihan.')]});return;}
-    if(c==='voteskip'){const vote=this.castVote(guild.id,s,voice.id,i.user.id);if(vote.passed){this.votes.delete(guild.id);await s.skip();this.save(guild.id,s);await i.editReply({components:[musicNotice(`Vote skip berhasil (${vote.needed}/${vote.needed}).`)]});}else await i.editReply({components:[musicNotice(`Vote skip: ${vote.votes}/${vote.needed}.`)]});return;}
+    if(c==='voteskip'){const vote=this.castVote(guild.id,s,voice.id,i.user.id);if(vote.passed){this.votes.delete(guild.id);await this.skipWithAutoplay(guild.id,s);this.save(guild.id,s);await i.editReply({components:[musicNotice(`Vote skip berhasil (${vote.needed}/${vote.needed}).`)]});}else await i.editReply({components:[musicNotice(`Vote skip: ${vote.votes}/${vote.needed}.`)]});return;}
     if(c==='history'){const sub=i.options.getSubcommand(false);if(sub==='clear'){this.persistence.clearHistory(guild.id);await i.editReply({components:[musicNotice('Riwayat dihapus.')]});return;}const rows=this.persistence.history(guild.id);if(sub==='play'){const row=rows[i.options.getInteger('position',true)-1];if(!row)throw new MusicError('Posisi riwayat tidak tersedia.');const node=this.shoukaku.getIdealNode();if(!node)throw new MusicError(sourceError);s.add([restoredTrack(row)]);if(!s.current)await s.next();this.save(guild.id,s);await i.editReply({components:[musicNotice('Lagu riwayat ditambahkan.')]});return;}await i.editReply({components:[musicNotice(rows.slice(0,10).map((x,n)=>`${n+1}. ${escapeMarkdown(x.title).slice(0,90)} — ${escapeMarkdown(x.author).slice(0,70)}`).join('\n')||'Riwayat kosong.')]});return;}
     if(c==='nowplaying'){await i.editReply({components:[playerView(s,player.volume)]});await this.attachPanel(guild.id,i,s,'player',1);return;}
    if(c==='queue'){
@@ -529,7 +551,7 @@ export class Music {
     else if(button.customId==='music:loop')panel.session.loop=panel.session.loop==='off'?'song':panel.session.loop==='song'?'queue':'off';
     else if(button.customId==='music:autoplay')panel.session.autoplay=!panel.session.autoplay;
     else if(button.customId==='music:pause'){await panel.session.setPaused(!panel.session.paused);this.meterReset(panel.session);}
-    else if(button.customId==='music:skip'){if(!this.isDj(panel.guildId,member)){const vote=this.castVote(panel.guildId,panel.session,panel.session.channelId,button.user.id);if(!vote.passed){await button.followUp({content:`Vote skip: ${vote.votes}/${vote.needed}.`,flags:MessageFlags.Ephemeral});return;}this.votes.delete(panel.guildId);}await panel.session.skip();this.save(panel.guildId,panel.session);this.armIdle(panel.guildId,panel.session);}
+    else if(button.customId==='music:skip'){if(!this.isDj(panel.guildId,member)){const vote=this.castVote(panel.guildId,panel.session,panel.session.channelId,button.user.id);if(!vote.passed){await button.followUp({content:`Vote skip: ${vote.votes}/${vote.needed}.`,flags:MessageFlags.Ephemeral});return;}this.votes.delete(panel.guildId);}await this.skipWithAutoplay(panel.guildId,panel.session);this.save(panel.guildId,panel.session);this.armIdle(panel.guildId,panel.session);}
     else if(button.customId==='music:shuffle'){panel.session.fair=false;panel.session.shuffle();}
     else if(button.customId==='music:stop'){await this.dispose(panel.guildId,false);await panel.interaction.editReply({components:[musicNotice('Playback dihentikan. Antrean dibersihkan.')]});this.clearPanel(panel.guildId);return;}
    });
