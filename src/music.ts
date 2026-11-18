@@ -117,7 +117,7 @@ export class Music {
   if(ms>0&&s.current)this.persistence.recordListening(guild,this.savedTrack(s.current,'unknown'),now.filter(id=>previous.has(id)),ms);
  }
  private async profile(i:ChatInputCommandInteraction){
-  const result=this.persistence.listeningProfile(i.user.id),settings=this.persistence.profileSettings(i.user.id);
+  const result=this.persistence.listeningProfile(i.user.id,i.guildId!),settings=this.persistence.profileSettings(i.user.id);
   const friends=await Promise.all(result.friends.map(async row=>{const user=await this.client.users.fetch(row.id).catch(()=>undefined);return {name:user?.globalName??user?.username??'Pengguna tidak tersedia',ms:row.ms};}));
   const avatar=await discordAvatar(i.user.displayAvatarURL({extension:'png',size:256}));
   const progress=this.persistence.progress(i.guildId!,i.user.id);
