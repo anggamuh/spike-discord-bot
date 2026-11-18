@@ -121,6 +121,40 @@ test('CHANNEL_INFO empty snapshot followed by stale status does not disable acti
  await f.manager.shutdown();
 });
 
+test('autoplay transition accepts Discord empty-string clear ACK without losing ownership',async()=>{
+ const writes:Array<string|null>=[];
+ let manager!:VoiceStatusManager;
+ manager=new VoiceStatusManager({
+  debounceMs:1,
+  canWrite:()=>true,
+  put:async(_channel,status)=>{
+   writes.push(status);
+   // Real Discord gateway: clearing with REST status=null is echoed as status="".
+   manager.observe('v',status===null?'':status);
+  }
+ });
+ manager.observe('v','');
+ await manager.update('g','v','Surabaya — Crayon Case');
+ await manager.clear('g','v');
+ await manager.update('g','v','because, — Artist');
+ assert.deepEqual(writes,['Surabaya — Crayon Case',null,'because, — Artist']);
+ await manager.update('g','v','another song — Artist');
+ assert.equal(writes.at(-1),'another song — Artist');
+ // A genuine manual edit still blocks further updates.
+ manager.observe('v','A member wrote this');
+ await manager.update('g','v','unwanted — Artist');
+ assert.equal(writes.length,4);
+ await manager.shutdown();
+});
+
+test('whitespace-only CHANNEL_INFO observations mean no existing manual status',async()=>{
+ const f=fixture();
+ f.manager.observe('v','  ');
+ await f.manager.update('g','v','Track — Artist');
+ assert.deepEqual(f.calls,[['v','Track — Artist']]);
+ await f.manager.shutdown();
+});
+
 test('gateway acknowledgement before HTTP response preserves ownership; manual edit in flight wins',async()=>{
  let manager!:VoiceStatusManager;
  const f=fixture({put:async(c,s)=>{manager.observe(c,s);}});manager=f.manager;
