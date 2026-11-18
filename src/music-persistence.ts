@@ -53,7 +53,7 @@ export class MusicPersistence {
  }
  /** Message reward needs no MessageContent intent. A cooldown and daily cap block farming. */
  awardChatXP(guild:string,user:string,at=Date.now()):boolean {
-  if(!/^\\d{15,22}$/.test(guild)||!/^\\d{15,22}$/.test(user)||!Number.isFinite(at)||at<0)return false;
+  if(!/^\d{15,22}$/.test(guild)||!/^\d{15,22}$/.test(user)||!Number.isFinite(at)||at<0)return false;
   const row=this.db.prepare('SELECT last_award_at AS last,day,daily_count AS daily FROM hf_chat_xp WHERE guild_id=? AND user_id=?').get(guild,user) as {last:number;day:string;daily:number}|undefined;
   if(row&&(at-row.last<60_000||at<=row.last))return false;
   const day=new Date(at+7*3600_000).toISOString().slice(0,10);
