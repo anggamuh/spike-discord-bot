@@ -84,12 +84,14 @@ export class MusicPersistence {
    LEFT JOIN hf_chat_xp c ON c.guild_id=? AND c.user_id=u.user
    ORDER BY xp DESC,u.user LIMIT 10`).all(guild,guild,guild) as Array<{user:string;xp:number}>;
  }
- listeningProfile(user:string){
+ listeningProfile(user:string,guild?:string){
   const scope='EXISTS (SELECT 1 FROM json_each(a.audience) WHERE value=?)';
-  const total=this.db.prepare(`SELECT COALESCE(SUM(ms),0) AS ms,COUNT(DISTINCT guild_id) AS servers,COUNT(DISTINCT track_key) AS tracks FROM music_audience a WHERE ${scope}`).get(user) as {ms:number;servers:number;tracks:number};
-  const servers=this.db.prepare(`SELECT guild_id AS id,SUM(ms) AS ms FROM music_audience a WHERE ${scope} GROUP BY guild_id ORDER BY ms DESC,guild_id LIMIT 3`).all(user) as {id:string;ms:number}[];
-  const tracks=this.db.prepare(`SELECT title,author,SUM(ms) AS ms FROM music_audience a WHERE ${scope} GROUP BY track_key ORDER BY ms DESC,title LIMIT 3`).all(user) as {title:string;author:string;ms:number}[];
-  const friends=this.db.prepare(`SELECT j.value AS id,SUM(a.ms) AS ms FROM music_audience a,json_each(a.audience) j WHERE ${scope} AND j.value<>? GROUP BY j.value ORDER BY ms DESC,j.value LIMIT 3`).all(user,user) as {id:string;ms:number}[];
+  const filter=guild?' AND a.guild_id=?':'';
+  const params=guild?[user,guild]:[user];
+  const total=this.db.prepare(`SELECT COALESCE(SUM(ms),0) AS ms,COUNT(DISTINCT guild_id) AS servers,COUNT(DISTINCT track_key) AS tracks FROM music_audience a WHERE ${scope}${filter}`).get(...params) as {ms:number;servers:number;tracks:number};
+  const servers=this.db.prepare(`SELECT guild_id AS id,SUM(ms) AS ms FROM music_audience a WHERE ${scope}${filter} GROUP BY guild_id ORDER BY ms DESC,guild_id LIMIT 3`).all(...params) as {id:string;ms:number}[];
+  const tracks=this.db.prepare(`SELECT title,author,SUM(ms) AS ms FROM music_audience a WHERE ${scope}${filter} GROUP BY track_key ORDER BY ms DESC,title LIMIT 3`).all(...params) as {title:string;author:string;ms:number}[];
+  const friends=this.db.prepare(`SELECT j.value AS id,SUM(a.ms) AS ms FROM music_audience a,json_each(a.audience) j WHERE ${scope}${filter} AND j.value<>? GROUP BY j.value ORDER BY ms DESC,j.value LIMIT 3`).all(...params,user) as {id:string;ms:number}[];
   return {total,servers,tracks,friends};
  }
  recordPlayback(guild:string,track:SavedTrack,ms:number,plays:number,at=Date.now()){
