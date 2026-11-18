@@ -5,7 +5,7 @@ export const helpGroups:Record<string,{label:string;names:string[]}>= {
  music:{label:'Pemutar musik',names:['play','playnext','pause','resume','skip','voteskip','stop','nowplaying','volume','seek','replay','panel']},
  queue:{label:'Antrean & autoplay',names:['queue','remove','move','jump','shuffle','clear','loop','autoplay','fairqueue','savequeue']},
  collection:{label:'Playlist, favorit & riwayat',names:['playlist','favorite','history']},
- profile:{label:'Profil & statistik',names:['profile','profileset','top','wrapped']},
+ profile:{label:'Profil & statistik',names:['profile','profileset','top','wrapped','level','achievements','xptop']},
  admin:{label:'Pengaturan server',names:['247','musicsettings','dj','status']},
  other:{label:'Valorant & bantuan',names:['link','rank','stats','matches','unlink','help','ping']}
 };
