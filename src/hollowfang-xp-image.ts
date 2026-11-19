@@ -110,7 +110,7 @@ export async function renderLevelImage(data:HollowfangImageData):Promise<Buffer>
  return sharp(Buffer.from(svg)).png().toBuffer();
 }
 export async function renderAchievementsImage(data:HollowfangImageData):Promise<Buffer>{
- const p=data.progress,height=1140,opened=p.achievements.filter(a=>a.unlocked).length;
+ const p=data.progress,height=1220,opened=p.achievements.filter(a=>a.unlocked).length;
  let svg=await frame(height,data,'THE RELIQUARY  /  MEMBER ACHIEVEMENTS');
  svg+=panel(77,397,1046,92)+
  '<path d="M85 487Q600 496 1115 487" fill="none" stroke="#c8a4e7" stroke-opacity=".46"/>'+
@@ -121,8 +121,14 @@ export async function renderAchievementsImage(data:HollowfangImageData):Promise<
  '<rect x="107" y="458" width="'+(986*(p.achievements.length?opened/p.achievements.length:0))+'" height="11" rx="5" fill="url(#violet)"/>';
  for(let i=0;i<p.achievements.length;i++){
   const a=p.achievements[i]!,col=i%4,row=Math.floor(i/4),x=77+col*267,y=510+row*247;
-  const description=shortText(a.description,52);
-  const halves=description.length>29?[description.slice(0,29).trim(),description.slice(29).trim()]:[description];
+  const description=shortText(a.description,65);
+  const words=description.split(/\s+/u),halves:string[]=[];
+  for(const word of words){
+   const last=halves.length-1;
+   if(last>=0&&Array.from(halves[last]+' '+word).length<=29)halves[last]+=' '+word;
+   else if(halves.length<2)halves.push(word);
+   else {halves[1]=shortText(halves[1]+' '+word,29);}
+  }
   svg+=panel(x,y,248,232)+
    '<path d="M'+(x+19)+' '+(y+20)+'h210" stroke="#b78cdd" stroke-opacity=".4"/>'+
    relic(x+124,y+78,a)+
@@ -132,6 +138,6 @@ export async function renderAchievementsImage(data:HollowfangImageData):Promise<
    '<rect x="'+(x+57)+'" y="'+(y+210)+'" width="134" height="20" rx="6" fill="'+(a.unlocked?'#42215c':'#25202e')+'" stroke="'+(a.unlocked?'#b486e1':'#6c6577')+'" stroke-opacity=".62"/>'+
    text(x+124,y+224,a.unlocked?'✦ UNLOCKED':'◇ LOCKED',12,a.unlocked?'#edccff':'#9b8caa',700,'middle');
  }
- svg+=filigree(170,1036,860)+text(600,1064,'EARNED THROUGH REAL LISTENING AND COMMUNITY ACTIVITY',16,'#d3bce0',600,'middle')+bottom(height);
+ svg+=filigree(170,1060,860)+text(600,1103,'EARNED THROUGH REAL LISTENING AND COMMUNITY ACTIVITY',16,'#d3bce0',600,'middle')+bottom(height);
  return sharp(Buffer.from(svg)).png().toBuffer();
 }
