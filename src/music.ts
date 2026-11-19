@@ -1,5 +1,6 @@
 import {renderProfile,discordAvatar,listeningTime} from './music-profile.js';
 import {VoiceStatusManager,musicVoiceStatus} from './voice-status.js';
+import {levelCard,achievementsCard,xpTopCard} from './hollowfang-xp-ui.js';
 import {Routes,GatewayOpcodes,type RESTPutAPIChannelVoiceStatusJSONBody} from 'discord.js';
 import {PlaybackMeter,monthKey,validMonth} from './music-meter.js';
 import {parsePosition,type MusicPreferences} from './music-options.js';
@@ -127,23 +128,21 @@ export class Music {
  private async hollowfangProgress(i:ChatInputCommandInteraction){
   const guild=i.guildId!;
   if(i.commandName==='xptop'){
-   const rows=await Promise.all(this.persistence.xpLeaderboard(guild).map(async(r,n)=>{
+   const rows=await Promise.all(this.persistence.xpLeaderboard(guild).map(async r=>{
     const user=await this.client.users.fetch(r.user).catch(()=>undefined);
-    return `${n+1}. **${escapeMarkdown(user?.globalName??user?.username??'Member').slice(0,65)}** · ${r.xp.toLocaleString('id-ID')} XP`;
+    return {name:user?.globalName??user?.username??'Member',xp:r.xp};
    }));
-   await i.editReply({components:[musicNotice(`## HOLLOWFANG · XP LEADERBOARD\n${rows.join('\n')||'Belum ada progres.'}`)],allowedMentions:{parse:[]}});
+   await i.editReply({components:[xpTopCard(rows)],allowedMentions:{parse:[]}});
    return;
   }
   const target=i.options.getUser('member')??i.user;
-  const p=this.persistence.progress(guild,target.id);
-  const display=escapeMarkdown(target.globalName??target.username).slice(0,80);
-  if(i.commandName==='level'){
-   const percent=Math.floor(p.currentLevelXp/p.nextLevelXp*100);
-   await i.editReply({components:[musicNotice(`## ${display} · HOLLOWFANG LEVEL\n**LEVEL ${p.level}** · ${p.rank}\n**XP:** ${p.xp.toLocaleString('id-ID')} total · ${p.currentLevelXp}/${p.nextLevelXp} menuju level berikutnya (${percent}%)\n**Dari musik:** ${Math.floor(p.listeningMs/60000)} XP · **Dari chat:** ${p.chatXp} XP\n**Badge:** ${p.achievements.filter(a=>a.unlocked).length}/${p.achievements.length} terbuka`)],allowedMentions:{parse:[]}});
-   return;
-  }
-  const lines=p.achievements.map(a=>`${a.unlocked?'✦':'◇'} **${a.name}** — ${a.description} ${a.unlocked?'· Terbuka':'· Terkunci'}`);
-  await i.editReply({components:[musicNotice(`## ${display} · HOLLOWFANG ACHIEVEMENTS\n${lines.join('\n')}`)],allowedMentions:{parse:[]}});
+  const progress=this.persistence.progress(guild,target.id);
+  const name=target.globalName??target.username;
+  const avatar=target.displayAvatarURL({extension:'png',size:128});
+  const card=i.commandName==='level'
+   ?levelCard(name,progress,avatar)
+   :achievementsCard(name,progress,avatar);
+  await i.editReply({components:[card],allowedMentions:{parse:[]}});
  }
  private async profileSettings(i:ChatInputCommandInteraction){
   const patch:Partial<ProfileSettings>={};
