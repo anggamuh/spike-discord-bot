@@ -11,6 +11,23 @@ const rail=(x:number,y:number,w:number)=>'<path d="M'+x+' '+y+' Q'+(x+w/2)+' '+(
 const windowPane=(x:number)=>'<g opacity=".67"><path d="M'+x+' 432V90Q'+(x+75)+' -35 '+(x+150)+' 90V432Z" fill="#160e27" stroke="#d3b5e7" stroke-width="3"/><path d="M'+(x+12)+' 422V104Q'+(x+75)+' 0 '+(x+138)+' 104V422Z" fill="url(#glass)" stroke="#bf86fa"/><path d="M'+(x+75)+' 45V425M'+(x+12)+' 165H'+(x+138)+'M'+(x+12)+' 253H'+(x+138)+'M'+(x+12)+' 165L'+(x+138)+' 253M'+(x+138)+' 165L'+(x+12)+' 253" fill="none" stroke="#dfc8ed" opacity=".65" stroke-width="2"/></g>';
 const rose=(x:number,y:number)=>'<g transform="translate('+x+' '+y+')" fill="none" stroke="#caa6ed" stroke-width="2"><path d="M0 -30Q26 -42 32 -13Q48 4 24 18Q5 42 -16 27Q-43 24 -34 -3Q-28 -33 0 -30Z" fill="#26102e"/><path d="M-20 -8Q7 -24 20 -3Q27 16 4 21Q-18 20 -17 2Q-10 -14 10 -7Q18 5 2 8M-32 22L-51 43M30 22L52 43" stroke="#e6c8f6"/></g>';
 const panel=(x:number,y:number,w:number,h:number)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="13" fill="#090914" fill-opacity=".93" stroke="url(#silver)" stroke-opacity=".68" stroke-width="2"/>';
+/** SVG-native gothic detailing; no baked example member data or external assets. */
+const sigil=(id:string,x:number,y:number)=>{
+ const paths:Record<string,string>={
+  'first-echo':'<path d="M-6 -29V17M-6 -29L25 -37V8M-6 -9L25 -17" fill="none" stroke-width="4"/><circle cx="-16" cy="18" r="11" fill="none" stroke-width="3"/><circle cx="15" cy="9" r="11" fill="none" stroke-width="3"/>',
+  'night-listener':'<path d="M13 -38A40 40 0 1 0 34 27A34 34 0 0 1 13 -38Z" fill="#8c54d0" fill-opacity=".38" stroke-width="2.7"/><path d="M-19 -26l4 8l8 4l-8 4l-4 8l-4 -8l-8 -4l8 -4ZM26 -5l2 6l6 2l-6 2l-2 6l-2 -6l-6 -2l6 -2Z" fill="#ecdcff" stroke="none"/>',
+  'music-addict':'<path d="M-32 4Q-36 -28 -13 -32Q0 -37 13 -32Q36 -27 32 4M-33 4V26Q-33 33 -20 33H-10V0H-20Q-33 0 -33 14M33 4V26Q33 33 20 33H10V0H20Q33 0 33 14" stroke-width="4" fill="#7c3aaf" fill-opacity=".22"/>',
+  'track-hunter':'<circle r="35" fill="none" stroke-width="3"/><circle r="24" fill="none" stroke-width="2"/><circle r="11" fill="#b889ed" stroke-width="2"/><circle r="3" fill="#f6edff" stroke="none"/><path d="M8 -33L25 -18" stroke-width="2"/>',
+  'kindred-soul':'<path d="M0 34Q-44 8 -36 -15Q-30 -39 -7 -30L0 -21L7 -30Q30 -39 36 -15Q44 8 0 34Z" fill="#7c3aac" fill-opacity=".25" stroke-width="3"/><path d="M-18 -1l12 -10l12 10l-12 10ZM5 11l12 -10l12 10l-12 10Z" stroke-width="2" fill="none"/>',
+  'first-whisper':'<path d="M-18 30Q11 12 22 -11Q32 -30 28 -35Q16 -39 2 -20Q-13 -2 -18 30ZM-25 33L29 33" fill="#9358c5" fill-opacity=".2" stroke-width="2.5"/><path d="M-18 28L14 -13" stroke-width="2"/>',
+  'voice-of-hollow':'<path d="M-36 0Q0 -43 36 0Q0 43 -36 0Z" fill="#724098" fill-opacity=".24" stroke-width="3"/><circle r="14" fill="none" stroke-width="3"/><circle r="5" fill="#e4c2ff" stroke="none"/>',
+  'hollow-elite':'<path d="M-36 -19L-17 2L0 -34L17 2L36 -19L27 28H-27Z" fill="#9550cb" fill-opacity=".28" stroke-width="3.2"/><path d="M-27 29H27" stroke-width="3"/><path d="M0 -8l7 10l-7 10l-7 -10Z" fill="#d8b4ff" stroke-width="1.5"/>'
+ };
+ return '<g transform="translate('+x+' '+y+')" fill="none" stroke="#ead4ff" stroke-linecap="round" stroke-linejoin="round">'+(paths[id]??'<path d="M0 -36L10 -10L36 0L10 10L0 36L-10 10L-36 0L-10 -10Z"/>')+'</g>';
+};
+const flourish=(x:number,y:number,flip=1)=>'<g transform="translate('+x+' '+y+') scale('+flip+' 1)" fill="none" stroke="url(#silver)" stroke-width="2" opacity=".84"><path d="M0 45Q27 -8 95 -9Q55 5 43 -31M20 24Q70 22 74 54M50 -5Q90 -15 102 -36"/><path d="M29 12l-9 -18l22 8M65 -9l3 -20l11 14M65 28l21 -7l-9 18"/></g>';
+const filigree=(x:number,y:number,w:number)=>'<g fill="none" stroke="url(#silver)" stroke-opacity=".7"><path d="M'+x+' '+y+'h'+w+'" stroke-width="1.8"/>'+gem(x,y,5)+gem(x+w,y,5)+gem(x+w/2,y,6)+'</g>';
+const halo=(x:number,y:number,r:number)=>'<g transform="translate('+x+' '+y+')"><circle r="'+r+'" fill="none" stroke="#a36bdf" stroke-width="1.7" stroke-dasharray="5 10" opacity=".7"/>'+Array.from({length:12},(_,i)=>{const a=i*Math.PI/6,xx=Math.cos(a)*r,yy=Math.sin(a)*r;return '<path d="M'+xx+' '+yy+'l'+(-Math.sin(a)*7)+' '+(Math.cos(a)*7)+'" stroke="#e9d3f6" opacity=".7"/>';}).join('')+'</g>';
 async function portrait(avatar?:Buffer){
  if(!avatar)return text(172,280,'HF',54,'#dfbdff',700,'middle','DejaVu Serif, Georgia, serif');
  try{
@@ -37,10 +54,12 @@ async function frame(height:number,data:HollowfangImageData,kicker:string){
  text(600,103,'H O L L O W F A N G',40,'#f8eaff',700,'middle','DejaVu Serif, Georgia, serif')+
  text(600,129,'— E X C L U S I V E  C O M M U N I T Y —',13,'#c8b6d5',600,'middle')+
  '<path d="M370 142H830" stroke="url(#silver)" stroke-opacity=".8"/>'+gem(600,142,8)+
- panel(77,166,1046,211)+
+ flourish(47,132)+flourish(1153,132,-1)+
+ '<path d="M420 152Q600 158 780 152" fill="none" stroke="#c7a6dc" opacity=".5"/>'+
+  panel(77,166,1046,211)+
  '<circle cx="172" cy="265" r="94" fill="#170d22" stroke="url(#silver)" stroke-width="4"/>'+
  '<circle cx="172" cy="265" r="81" fill="none" stroke="#a674e4" stroke-width="2"/>'+
- face+gem(172,171,11)+gem(172,359,11)+gem(79,265,8)+gem(265,265,8)+
+ face+halo(172,265,104)+gem(172,171,11)+gem(172,359,11)+gem(79,265,8)+gem(265,265,8)+
  text(310,207,kicker,16,'#c995ff',700)+
  text(310,273,shortText(data.name,22),46,'#fff0ff',700,'start','DejaVu Serif, Georgia, serif')+
  text(311,313,'THE HOLLOW REMEMBERS',18,'#c5b4d8',500)+
@@ -48,16 +67,13 @@ async function frame(height:number,data:HollowfangImageData,kicker:string){
 }
 const bottom=(height:number)=>'<path d="M135 '+(height-88)+'H520M680 '+(height-88)+'H1065" stroke="#b69acc" stroke-opacity=".55"/>'+gem(600,height-88,11)+
  text(600,height-59,'HOLLOWFANG  /  POWERED BY CRYPT',13,'#c0acd2',600,'middle')+'</svg>';
-const icons:Record<string,string>={
- 'first-echo':'♫','night-listener':'☾','music-addict':'♬','track-hunter':'◎','kindred-soul':'✧',
- 'first-whisper':'✒','voice-of-hollow':'◈','hollow-elite':'♛'
-};
 function relic(x:number,y:number,a:Achievement){
  const active=a.unlocked;
- return '<g opacity="'+(active?'1':'.46')+'"><circle cx="'+x+'" cy="'+y+'" r="57" fill="#1a1027" stroke="url(#silver)" stroke-width="3"/>'+
- '<circle cx="'+x+'" cy="'+y+'" r="50" fill="none" stroke="'+(active?'#b887fa':'#98909d')+'" stroke-dasharray="5 7" stroke-width="1.5"/>'+
- gem(x,y-57,7)+gem(x,y+57,7)+
- text(x,y+17,icons[a.id]??'✦',53,active?'#ead2ff':'#9890a6',700,'middle','DejaVu Serif, Georgia, serif')+'</g>';
+ return '<g opacity="'+(active?'1':'.42')+'">'+
+ '<circle cx="'+x+'" cy="'+y+'" r="62" fill="#38154e" opacity="'+(active?'.46':'.1')+'"/>'+
+ '<circle cx="'+x+'" cy="'+y+'" r="55" fill="#161020" stroke="url(#silver)" stroke-width="3"/>'+
+ '<circle cx="'+x+'" cy="'+y+'" r="48" fill="#2a163c" fill-opacity=".48" stroke="'+(active?'#c08df2':'#817687')+'" stroke-dasharray="4 7" stroke-width="2"/>'+
+ sigil(a.id,x,y)+gem(x,y-57,7)+gem(x,y+57,7)+gem(x-57,y,6)+gem(x+57,y,6)+'</g>';
 }
 export async function renderLevelImage(data:HollowfangImageData):Promise<Buffer>{
  const p=data.progress,opened=p.achievements.filter(a=>a.unlocked).length;
