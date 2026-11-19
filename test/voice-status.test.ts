@@ -22,7 +22,7 @@ test('play → skip → pause → resume → natural end → stop uses actual se
  await s.skip();s.start('b');await pending;
  await s.setPaused(true);await pending;await s.setPaused(false);await pending;
  s.progress(100);await s.end('finished','b');await pending;await s.stop();await pending;
- assert.deepEqual(f.calls.map(x=>x[1]),['a — Artist','b — Artist','⏸️ b — Artist','b — Artist',null]);
+ assert.deepEqual(f.calls.map(x=>x[1]),['♫ 𝗮 — 𝗔𝗿𝘁𝗶𝘀𝘁','♫ 𝗯 — 𝗔𝗿𝘁𝗶𝘀𝘁','Ⅱ 𝗯 — 𝗔𝗿𝘁𝗶𝘀𝘁','♫ 𝗯 — 𝗔𝗿𝘁𝗶𝘀𝘁',null]);
  await f.manager.shutdown();
 });
 test('autoplay completion publishes the next track through the existing finishTrack path',async()=>{
@@ -31,7 +31,7 @@ test('autoplay completion publishes the next track through the existing finishTr
  s.autoplay=true;s.add([track('a')]);await s.next();s.start('a');s.progress(100);await pending;
  const owner={shoukaku:{getIdealNode:()=>({rest:{resolve:async()=>({loadType:LoadType.SEARCH,data:[track('b')]})}})},persistence:{history:()=>[]}};
  await (Music.prototype as any).finishTrack.call(owner,'g',s);s.start('b');await pending;
- assert.equal(f.calls.at(-1)?.[1],'b — Artist');await s.stop();await pending;await f.manager.shutdown();
+ assert.equal(f.calls.at(-1)?.[1],'♫ 𝗯 — 𝗔𝗿𝘁𝗶𝘀𝘁');await s.stop();await pending;await f.manager.shutdown();
 });
 test('unchanged status is deduplicated and simultaneous guilds are independent',async()=>{
  const f=fixture();await Promise.all([f.manager.update('g','v','a'),f.manager.update('h','w','b')]);
@@ -182,6 +182,11 @@ test('disabled module performs no writes including cleanup; shutdown cancels pen
  await g.manager.update('g','v','a');await g.manager.shutdown();await delay(30);assert.equal(attempts,1);
 });
 test('Unicode formatting is bounded to 500 code points without cutting surrogate pairs',()=>{
- assert.equal(musicVoiceStatus(track('a'),false),'a — Artist');assert.equal(musicVoiceStatus(track('a'),true),'⏸️ a — Artist');
- assert.equal(Array.from(musicVoiceStatus(track('🎵'.repeat(600)),false)).length,500);
+ assert.equal(musicVoiceStatus(track('a'),false),'♫ 𝗮 — 𝗔𝗿𝘁𝗶𝘀𝘁');assert.equal(musicVoiceStatus(track('a'),true),'Ⅱ 𝗮 — 𝗔𝗿𝘁𝗶𝘀𝘁');
+ const bounded=musicVoiceStatus(track('🎵'.repeat(600)),false);
+ assert.equal(Array.from(bounded).length,500);
+ assert.ok(!bounded.includes('\uFFFD'),'must not introduce replacement characters');
+ assert.equal(musicVoiceStatus({...track('mix'),info:{...track('mix').info,title:'Raisa 2026 / 東京 🎵',author:'A&B'}},false),'♫ 𝗥𝗮𝗶𝘀𝗮 𝟮𝟬𝟮𝟲 / 東京 🎵 — 𝗔&𝗕');
+ assert.equal(musicVoiceStatus(track('a'),false).includes('\uFFFD'),false);
+
 });
