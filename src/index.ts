@@ -199,9 +199,9 @@ client.on(Events.InteractionCreate, async (i) => {
         if (musicNames.has(c)) {
             // /profile is a shareable public member card; settings and controls stay private.
             await i.reply({
-                flags: (c === 'profile' ? 0 : MessageFlags.Ephemeral) | musicV2Flags,
+                flags: (['profile','level','achievements'].includes(c) ? 0 : MessageFlags.Ephemeral) | musicV2Flags,
                 components: [
-                    musicNotice('Menyiapkan pemutar...'),
+                    musicNotice(['profile','level','achievements'].includes(c) ? 'Menyiapkan kartu Hollowfang...' : 'Menyiapkan pemutar...'),
                 ],
             });
 
