@@ -11,6 +11,12 @@ const gem=(x:number,y:number,r=9)=>'<path d="M'+x+' '+(y-r)+'l'+(r*.7)+' '+r+'l-
 const rail=(x:number,y:number,w:number)=>'<path d="M'+x+' '+y+' Q'+(x+w/2)+' '+(y-12)+' '+(x+w)+' '+y+'" stroke="url(#silver)" fill="none" stroke-width="2"/>'+Array.from({length:15},(_,i)=>{const px=x+i*w/14;return '<path d="M'+px+' '+y+'l'+(i%2?12:-12)+' '+(i%2?-18:18)+'l'+(i%2?-6:6)+' '+(i%2?6:-6)+'" stroke="#b79dcd" fill="none" opacity=".7"/>';}).join('');
 const windowPane=(x:number)=>'<g opacity=".67"><path d="M'+x+' 432V90Q'+(x+75)+' -35 '+(x+150)+' 90V432Z" fill="#160e27" stroke="#d3b5e7" stroke-width="3"/><path d="M'+(x+12)+' 422V104Q'+(x+75)+' 0 '+(x+138)+' 104V422Z" fill="url(#glass)" stroke="#bf86fa"/><path d="M'+(x+75)+' 45V425M'+(x+12)+' 165H'+(x+138)+'M'+(x+12)+' 253H'+(x+138)+'M'+(x+12)+' 165L'+(x+138)+' 253M'+(x+138)+' 165L'+(x+12)+' 253" fill="none" stroke="#dfc8ed" opacity=".65" stroke-width="2"/></g>';
 const rose=(x:number,y:number)=>'<g transform="translate('+x+' '+y+')" fill="none" stroke="#caa6ed" stroke-width="2"><path d="M0 -30Q26 -42 32 -13Q48 4 24 18Q5 42 -16 27Q-43 24 -34 -3Q-28 -33 0 -30Z" fill="#26102e"/><path d="M-20 -8Q7 -24 20 -3Q27 16 4 21Q-18 20 -17 2Q-10 -14 10 -7Q18 5 2 8M-32 22L-51 43M30 22L52 43" stroke="#e6c8f6"/></g>';
+const castle=(x:number,y:number)=>'<g transform="translate('+x+' '+y+')" opacity=".55">'+
+ '<circle cx="83" cy="39" r="45" fill="#cbaef3" fill-opacity=".14" stroke="#e6ccff" stroke-opacity=".2"/>'+
+ '<path d="M5 150V108h20V72h12V52l15 20v36h12V81h14V38l18 -25l18 25v43h12v28h11V66l18 -23l17 23v43h20v41Z" fill="#100d1a" stroke="#c9a6e7" stroke-width="1.5"/>'+
+ '<path d="M25 108V87h12v21M80 81V45h16v36M138 109V77h14v32" fill="#9d65c9" fill-opacity=".22" stroke="#a786c8" stroke-width="1.4"/>'+
+ '<path d="M-15 151H210" stroke="#c0a6d6" stroke-opacity=".5"/>'+
+ '</g>';
 const panel=(x:number,y:number,w:number,h:number)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="13" fill="#090914" fill-opacity=".91" stroke="url(#silver)" stroke-opacity=".88" stroke-width="2.3"/>'+
  '<path d="M'+(x+12)+' '+(y+32)+'V'+(y+12)+'H'+(x+32)+'M'+(x+w-32)+' '+(y+h-12)+'H'+(x+w-12)+'V'+(y+h-32)+'" fill="none" stroke="#dbb8ff" stroke-width="2" opacity=".8"/>'+
  '<path d="M'+(x+18)+' '+(y+7)+'H'+(x+w-18)+'" stroke="#b977ef" stroke-opacity=".55"/>';
@@ -32,11 +38,11 @@ const flourish=(x:number,y:number,flip=1)=>'<g transform="translate('+x+' '+y+')
 const filigree=(x:number,y:number,w:number)=>'<g fill="none" stroke="url(#silver)" stroke-opacity=".7"><path d="M'+x+' '+y+'h'+w+'" stroke-width="1.8"/>'+gem(x,y,5)+gem(x+w,y,5)+gem(x+w/2,y,6)+'</g>';
 const halo=(x:number,y:number,r:number)=>'<g transform="translate('+x+' '+y+')"><circle r="'+r+'" fill="none" stroke="#a36bdf" stroke-width="1.7" stroke-dasharray="5 10" opacity=".7"/>'+Array.from({length:12},(_,i)=>{const a=i*Math.PI/6,xx=Math.cos(a)*r,yy=Math.sin(a)*r;return '<path d="M'+xx+' '+yy+'l'+(-Math.sin(a)*7)+' '+(Math.cos(a)*7)+'" stroke="#e9d3f6" opacity=".7"/>';}).join('')+'</g>';
 async function portrait(avatar?:Buffer){
- if(!avatar)return text(172,280,'HF',54,'#dfbdff',700,'middle','DejaVu Serif, Georgia, serif');
+ if(!avatar)return text(190,282,'HF',54,'#dfbdff',700,'middle','DejaVu Serif, Georgia, serif');
  try{
-  const png=await sharp(avatar,{limitInputPixels:1048576}).resize(150,150,{fit:'cover'}).png().toBuffer();
-  return '<image x="97" y="190" width="150" height="150" href="data:image/png;base64,'+png.toString('base64')+'" clip-path="url(#portrait)"/>';
- }catch{return text(172,280,'HF',54,'#dfbdff',700,'middle','DejaVu Serif, Georgia, serif');}
+  const png=await sharp(avatar,{limitInputPixels:1048576}).resize(190,190,{fit:'cover'}).png().toBuffer();
+  return '<image x="95" y="169" width="190" height="190" href="data:image/png;base64,'+png.toString('base64')+'" clip-path="url(#portrait)"/>';
+ }catch{return text(190,282,'HF',54,'#dfbdff',700,'middle','DejaVu Serif, Georgia, serif');}
 }
 async function frame(height:number,data:HollowfangImageData,kicker:string){
  const face=await portrait(data.avatar);
@@ -46,12 +52,12 @@ async function frame(height:number,data:HollowfangImageData,kicker:string){
  '<linearGradient id="silver" x2="1" y2=".2"><stop stop-color="#70677e"/><stop offset=".33" stop-color="#faeaff"/><stop offset=".59" stop-color="#7e5c96"/><stop offset=".83" stop-color="#e9d6ff"/><stop offset="1" stop-color="#62526e"/></linearGradient>'+
  '<linearGradient id="violet" x2="1"><stop stop-color="#622992"/><stop offset=".5" stop-color="#d18aff"/><stop offset="1" stop-color="#8541c5"/></linearGradient>'+
  '<radialGradient id="haze"><stop stop-color="#9c62ff" stop-opacity=".27"/><stop offset="1" stop-color="#100d1c" stop-opacity="0"/></radialGradient>'+
- '<clipPath id="portrait"><circle cx="172" cy="265" r="75"/></clipPath></defs>'+
+ '<clipPath id="portrait"><circle cx="190" cy="264" r="95"/></clipPath></defs>'+
  '<rect width="1200" height="'+height+'" fill="url(#night)"/>'+ 
  '<image x="0" y="0" width="1200" height="'+height+'" preserveAspectRatio="xMidYMid slice" href="data:image/jpeg;base64,'+cinematicBackdrop+'" opacity=".93"/>'+
  '<rect x="226" y="145" width="748" height="'+(height-195)+'" rx="21" fill="#070710" fill-opacity=".26"/>'+
  '<ellipse cx="600" cy="90" rx="540" ry="290" fill="url(#haze)"/>'+
- windowPane(17)+windowPane(1033)+
+ ''+
  '<path d="M0 475V437H34V401H55V377H73V417H100V435H145V398H166V438H216V398H245V456H955V421H990V385H1014V430H1050V405H1080V433H1120V399H1150V437H1200V475Z" fill="#090913" opacity=".78"/>'+
  '<rect x="28" y="26" width="1144" height="'+(height-52)+'" rx="14" fill="none" stroke="url(#silver)" stroke-width="3"/>'+
  '<rect x="40" y="38" width="1120" height="'+(height-76)+'" rx="12" fill="none" stroke="#a36ddd" stroke-opacity=".42"/>'+
@@ -63,13 +69,14 @@ async function frame(height:number,data:HollowfangImageData,kicker:string){
  flourish(47,132)+flourish(1153,132,-1)+
  '<path d="M420 152Q600 158 780 152" fill="none" stroke="#c7a6dc" opacity=".5"/>'+
   panel(77,166,1046,211)+
- '<circle cx="172" cy="265" r="94" fill="#170d22" stroke="url(#silver)" stroke-width="4"/>'+
- '<circle cx="172" cy="265" r="81" fill="none" stroke="#a674e4" stroke-width="2"/>'+
- face+halo(172,265,104)+gem(172,171,11)+gem(172,359,11)+gem(79,265,8)+gem(265,265,8)+
- text(310,207,kicker,16,'#c995ff',700)+
- text(310,273,shortText(data.name,22),46,'#fff0ff',700,'start','DejaVu Serif, Georgia, serif')+
- text(311,313,'THE HOLLOW REMEMBERS',18,'#c5b4d8',500)+
- '<path d="M311 331H1081" stroke="url(#silver)" stroke-opacity=".5"/>';
+ castle(891,180)+
+ '<circle cx="190" cy="264" r="108" fill="#170d22" stroke="url(#silver)" stroke-width="4"/>'+
+ '<circle cx="190" cy="264" r="101" fill="none" stroke="#a674e4" stroke-width="2"/>'+
+ face+halo(190,264,115)+gem(190,156,11)+gem(190,372,11)+gem(82,264,8)+gem(298,264,8)+
+ text(336,207,kicker,16,'#c995ff',700)+
+ text(336,273,shortText(data.name,20),44,'#fff0ff',700,'start','DejaVu Serif, Georgia, serif')+
+ text(337,313,'THE HOLLOW REMEMBERS',18,'#c5b4d8',500)+
+ '<path d="M337 331H1081" stroke="url(#silver)" stroke-opacity=".5"/>';
 }
 const bottom=(height:number)=>'<path d="M135 '+(height-88)+'H520M680 '+(height-88)+'H1065" stroke="#b69acc" stroke-opacity=".55"/>'+gem(600,height-88,11)+
  text(600,height-59,'HOLLOWFANG  /  POWERED BY CRYPT',13,'#c0acd2',600,'middle')+'</svg>';
