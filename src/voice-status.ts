@@ -19,9 +19,21 @@ type State = {
  initialTakeoverAvailable: boolean;
 };
 
+/** Mathematical sans-serif bold needs code points, not UTF-16 string indexes.
+ * Preserve non-ASCII titles as-is; the Discord voice status is plain text. */
 export function musicVoiceStatus(track: {info: {title: string; author: string}}, paused: boolean) {
- const clean = (s: string) => s.replace(/[\r\n\t]/g, ' ').trim();
- return Array.from(`${paused ? '⏸️ ' : ''}${clean(track.info.title)} — ${clean(track.info.author)}`).slice(0, 500).join('');
+ const clean = (value: string) => value.replace(/[\r\n\t]/g, ' ').trim();
+ const bold = (value: string) => Array.from(value, char => {
+  const cp = char.codePointAt(0)!;
+  if (cp >= 65 && cp <= 90) return String.fromCodePoint(0x1D5D4 + cp - 65);
+  if (cp >= 97 && cp <= 122) return String.fromCodePoint(0x1D5EE + cp - 97);
+  if (cp >= 48 && cp <= 57) return String.fromCodePoint(0x1D7EC + cp - 48);
+  return char;
+ }).join('');
+ const title = bold(clean(track.info.title));
+ const author = bold(clean(track.info.author));
+ const status = `${paused ? 'Ⅱ' : '♫'} ${title} — ${author}`;
+ return Array.from(status).slice(0, 500).join('');
 }
 
 /** Coalesced, serialized writes per channel; only successful writes are owned. */
