@@ -14,7 +14,7 @@ test('both Hollowfang progression commands produce PNG images with consistent go
  const lm=await sharp(level).metadata(),am=await sharp(achievements).metadata();
  assert.equal(lm.format,'png');assert.equal(am.format,'png');
  assert.equal(lm.width,1200);assert.equal(lm.height,850);
- assert.equal(am.width,1200);assert.equal(am.height,1140);
+ assert.equal(am.width,1200);assert.equal(am.height,1220);
  assert.ok(level.length<8_000_000);assert.ok(achievements.length<8_000_000);
 });
 
@@ -39,7 +39,7 @@ test('royal achievement art uses custom sigils for every badge and preserves sta
  const candidate=await renderAchievementsImage({...data,progress:earned});
  const meta=await sharp(candidate).metadata();
  assert.equal(meta.width,1200);
- assert.equal(meta.height,1140);
+ assert.equal(meta.height,1220);
  assert.equal(earned.achievements.length,8);
  assert.equal(earned.achievements.filter(a=>a.unlocked).length,7);
 });
