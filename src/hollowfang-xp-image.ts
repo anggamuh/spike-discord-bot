@@ -80,12 +80,14 @@ export async function renderLevelImage(data:HollowfangImageData):Promise<Buffer>
  const ratio=p.nextLevelXp>0?Math.max(0,Math.min(1,p.currentLevelXp/p.nextLevelXp)):0;
  const height=850;let svg=await frame(height,data,'THE ASCENSION  /  MEMBER LEVEL');
  svg+=panel(77,398,1046,182)+
+ halo(187,475,68)+gem(187,405,9)+gem(187,543,9)+
  text(110,434,'LEVEL',18,'#c9acdc',700)+text(112,508,String(p.level),77,'#faeaff',700,'start','DejaVu Serif, Georgia, serif')+
  text(335,434,'RANK  /  THE HOLLOW',18,'#bfa4d9',700)+
  text(335,486,shortText(p.rank,27),35,'#eedefb',700,'start','DejaVu Serif, Georgia, serif')+
  text(335,529,pretty(p.xp)+' XP TOTAL',23,'#d69cff',700)+
  '<rect x="335" y="545" width="745" height="15" rx="7" fill="#291931" stroke="#ad80db" stroke-width="1"/>'+
  '<rect x="335" y="545" width="'+(745*ratio)+'" height="15" rx="7" fill="url(#violet)"/>'+
+ (ratio>0?'<circle cx="'+(335+745*ratio)+'" cy="552.5" r="10" fill="#c99aff" opacity=".4"/>'+gem(335+745*ratio,552.5,7):'')+
  text(1079,537,Math.round(ratio*100)+'%',18,'#dac1f5',700,'end')+
  text(335,577,pretty(p.currentLevelXp)+' / '+pretty(p.nextLevelXp)+' XP TO THE NEXT LEVEL',14,'#cbb7db',600)+
  panel(77,602,500,142)+panel(593,602,530,142)+
@@ -98,7 +100,7 @@ export async function renderLevelImage(data:HollowfangImageData):Promise<Buffer>
  return sharp(Buffer.from(svg)).png().toBuffer();
 }
 export async function renderAchievementsImage(data:HollowfangImageData):Promise<Buffer>{
- const p=data.progress,height=1030,opened=p.achievements.filter(a=>a.unlocked).length;
+ const p=data.progress,height=1140,opened=p.achievements.filter(a=>a.unlocked).length;
  let svg=await frame(height,data,'THE RELIQUARY  /  MEMBER ACHIEVEMENTS');
  svg+=panel(77,397,1046,92)+
  text(110,437,'HOLLOWFANG ACHIEVEMENTS',25,'#f6e7ff',700)+
@@ -106,11 +108,18 @@ export async function renderAchievementsImage(data:HollowfangImageData):Promise<
  '<rect x="107" y="458" width="986" height="11" rx="5" fill="#281831"/>'+
  '<rect x="107" y="458" width="'+(986*(p.achievements.length?opened/p.achievements.length:0))+'" height="11" rx="5" fill="url(#violet)"/>';
  for(let i=0;i<p.achievements.length;i++){
-  const a=p.achievements[i]!,col=i%4,row=Math.floor(i/4),x=77+col*267,y=510+row*214;
-  svg+=panel(x,y,248,196)+relic(x+124,y+69,a)+
-   text(x+124,y+148,shortText(a.name,19),17,a.unlocked?'#f7e7ff':'#9d93a8',700,'middle')+
-   text(x+124,y+175,a.unlocked?'✦ UNLOCKED':'◇ LOCKED',14,a.unlocked?'#ca9cf0':'#9b8caa',700,'middle');
+  const a=p.achievements[i]!,col=i%4,row=Math.floor(i/4),x=77+col*267,y=510+row*247;
+  const description=shortText(a.description,52);
+  const halves=description.length>29?[description.slice(0,29).trim(),description.slice(29).trim()]:[description];
+  svg+=panel(x,y,248,232)+
+   '<path d="M'+(x+19)+' '+(y+20)+'h210" stroke="#b78cdd" stroke-opacity=".4"/>'+
+   relic(x+124,y+78,a)+
+   text(x+124,y+157,shortText(a.name,19),17,a.unlocked?'#f7e7ff':'#a99bb9',700,'middle')+
+   text(x+124,y+181,halves[0]??'',12,'#c4b4d2',500,'middle')+
+   (halves[1]?text(x+124,y+197,halves[1],12,'#c4b4d2',500,'middle'):'')+
+   '<rect x="'+(x+57)+'" y="'+(y+210)+'" width="134" height="20" rx="6" fill="'+(a.unlocked?'#42215c':'#25202e')+'" stroke="'+(a.unlocked?'#b486e1':'#6c6577')+'" stroke-opacity=".62"/>'+
+   text(x+124,y+224,a.unlocked?'✦ UNLOCKED':'◇ LOCKED',12,a.unlocked?'#edccff':'#9b8caa',700,'middle');
  }
- svg+=text(600,959,'EARNED THROUGH REAL LISTENING AND COMMUNITY ACTIVITY',16,'#d3bce0',600,'middle')+bottom(height);
+ svg+=filigree(170,1036,860)+text(600,1064,'EARNED THROUGH REAL LISTENING AND COMMUNITY ACTIVITY',16,'#d3bce0',600,'middle')+bottom(height);
  return sharp(Buffer.from(svg)).png().toBuffer();
 }
