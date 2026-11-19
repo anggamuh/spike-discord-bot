@@ -1,4 +1,5 @@
 import {renderProfile,discordAvatar,listeningTime} from './music-profile.js';
+import {renderLevelImage,renderAchievementsImage} from './hollowfang-xp-image.js';
 import {VoiceStatusManager,musicVoiceStatus} from './voice-status.js';
 import {levelCard,achievementsCard,xpTopCard} from './hollowfang-xp-ui.js';
 import {Routes,GatewayOpcodes,type RESTPutAPIChannelVoiceStatusJSONBody} from 'discord.js';
@@ -138,11 +139,12 @@ export class Music {
   const target=i.options.getUser('member')??i.user;
   const progress=this.persistence.progress(guild,target.id);
   const name=target.globalName??target.username;
-  const avatar=target.displayAvatarURL({extension:'png',size:128});
-  const card=i.commandName==='level'
-   ?levelCard(name,progress,avatar)
-   :achievementsCard(name,progress,avatar);
-  await i.editReply({components:[card],allowedMentions:{parse:[]}});
+  const avatar=await discordAvatar(target.displayAvatarURL({extension:'png',size:256}));
+  const png=i.commandName==='level'
+   ?await renderLevelImage({name,avatar,progress})
+   :await renderAchievementsImage({name,avatar,progress});
+  const filename=i.commandName==='level'?'hollowfang-level.png':'hollowfang-achievements.png';
+  await i.editReply({components:[new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://'+filename).setDescription('Hollowfang '+i.commandName+' card'))],files:[new AttachmentBuilder(png,{name:filename})],allowedMentions:{parse:[]}});
  }
  private async profileSettings(i:ChatInputCommandInteraction){
   const patch:Partial<ProfileSettings>={};
