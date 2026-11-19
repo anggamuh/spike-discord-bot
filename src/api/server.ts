@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
-import type { Client } from 'discord.js';
+import { PermissionFlagsBits, type Client } from 'discord.js';
 import type { Music } from '../music.js';
 
 function validToken(
@@ -36,7 +36,10 @@ export function startMonitoringApi(client: Client, music?: Music): Server {
         throw new Error('MANUK_API_PORT tidak valid.');
     }
 
-    const server = createServer((req, res) => {
+    const recentActions = new Map<string, number[]>();
+    const allowedActions = new Set(['pause', 'resume', 'skip', 'shuffle', 'autoplay_on', 'autoplay_off', 'loop_off', 'loop_song', 'loop_queue']);
+
+    const server = createServer(async (req, res) => {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Cache-Control', 'no-store');
 
@@ -48,11 +51,50 @@ export function startMonitoringApi(client: Client, music?: Music): Server {
             return;
         }
 
+        if (req.method === 'POST' && req.url === '/api/music/control') {
+            const reply = (status: number, value: object) => {
+                res.writeHead(status);
+                res.end(JSON.stringify(value));
+            };
+            if (!client.isReady() || !guildId || !music) {
+                return reply(503, { error: 'Music controller unavailable' });
+            }
+            let body = '';
+            try {
+                for await (const part of req) {
+                    body += part.toString();
+                    if (Buffer.byteLength(body) > 2048) return reply(413, { error: 'Payload too large' });
+                }
+                const data: unknown = JSON.parse(body);
+                if (!data || typeof data !== 'object' || Array.isArray(data)) return reply(422, { error: 'Invalid request' });
+                const payload = data as Record<string, unknown>;
+                const actor = payload.actor;
+                const action = payload.action;
+                if (typeof actor !== 'string' || !/^\d{15,22}$/.test(actor) ||
+                    typeof action !== 'string' || !allowedActions.has(action)) {
+                    return reply(422, { error: 'Invalid actor or action' });
+                }
+                const guild = await client.guilds.fetch(guildId);
+                const member = await guild.members.fetch(actor).catch(() => null);
+                if (!member || (actor !== guild.ownerId &&
+                    !member.permissions.has(PermissionFlagsBits.Administrator))) {
+                    return reply(403, { error: 'Only guild administrators can control playback' });
+                }
+                const now = Date.now();
+                const timestamps = (recentActions.get(actor) ?? []).filter(at => now - at < 60_000);
+                if (timestamps.length >= 10) return reply(429, { error: 'Too many music actions' });
+                timestamps.push(now);
+                recentActions.set(actor, timestamps);
+                const result = await music.dashboardControl(guildId, action as Parameters<Music['dashboardControl']>[1]);
+                return reply(result.ok ? 200 : 409, result);
+            } catch {
+                return reply(502, { error: 'Music control failed' });
+            }
+        }
+
         if (req.method !== 'GET' || req.url !== '/api/health') {
             res.writeHead(404);
-            res.end(JSON.stringify({
-                error: 'Not Found'
-            }));
+            res.end(JSON.stringify({ error: 'Not Found' }));
             return;
         }
 
