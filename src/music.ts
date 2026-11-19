@@ -591,6 +591,51 @@ export class Music {
   }catch{await button.followUp({content:'Aksi tidak dapat dijalankan. Coba gunakan command musik lagi.',flags:MessageFlags.Ephemeral}).catch(()=>{});}
  }
  /** Read-only snapshot for the local authenticated monitoring API. */
+ async dashboardControl(guildId: string, action: 'pause' | 'resume' | 'skip' | 'shuffle' | 'autoplay_on' | 'autoplay_off' | 'loop_off' | 'loop_song' | 'loop_queue'): Promise<{ok: boolean; error?: string}> {
+  return this.serial.run(guildId, async () => {
+   const session = this.sessions.get(guildId);
+   if (!session || session.closed) return {ok: false, error: 'No active music session'};
+   if ((action === 'pause' || action === 'resume') && !session.current) return {ok: false, error: 'No active track'};
+   switch (action) {
+    case 'pause':
+     await session.setPaused(true);
+     this.meterReset(session);
+     break;
+    case 'resume':
+     await session.setPaused(false);
+     this.meterReset(session);
+     break;
+    case 'skip':
+     if (!session.current) return {ok: false, error: 'No active track'};
+     await this.skipWithAutoplay(guildId, session);
+     this.armIdle(guildId, session);
+     break;
+    case 'shuffle':
+     session.fair = false;
+     session.shuffle();
+     break;
+    case 'autoplay_on':
+     session.autoplay = true;
+     break;
+    case 'autoplay_off':
+     session.autoplay = false;
+     break;
+    case 'loop_off':
+     session.loop = 'off';
+     break;
+    case 'loop_song':
+     session.loop = 'song';
+     break;
+    case 'loop_queue':
+     session.loop = 'queue';
+     break;
+   }
+   this.save(guildId, session);
+   await this.refreshPanel(guildId);
+   return {ok: true};
+  });
+ }
+
  monitoringSnapshot(guildId?: string) {
   const active = [...this.sessions.entries()].filter(([id, session]) =>
    !session.closed && (!guildId || id === guildId)
