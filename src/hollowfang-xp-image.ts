@@ -86,6 +86,10 @@ export async function renderLevelImage(data:HollowfangImageData):Promise<Buffer>
  const ratio=p.nextLevelXp>0?Math.max(0,Math.min(1,p.currentLevelXp/p.nextLevelXp)):0;
  const height=850;let svg=await frame(height,data,'THE ASCENSION  /  MEMBER LEVEL');
  svg+=panel(77,398,1046,182)+
+ '<path d="M290 422V555M315 422V555" fill="none" stroke="url(#silver)" stroke-opacity=".3"/>'+
+ '<path d="M124 422Q185 406 246 422" fill="none" stroke="#dfb7ff" stroke-opacity=".55"/>'+
+ '<circle cx="186" cy="465" r="75" fill="none" stroke="#a46acc" stroke-opacity=".44" stroke-dasharray="3 8"/>'+
+ gem(186,388,10)+gem(186,542,10)+
  halo(187,475,68)+gem(187,405,9)+gem(187,543,9)+
  text(110,434,'LEVEL',18,'#c9acdc',700)+text(112,508,String(p.level),77,'#faeaff',700,'start','DejaVu Serif, Georgia, serif')+
  text(335,434,'RANK  /  THE HOLLOW',18,'#bfa4d9',700)+
@@ -109,6 +113,8 @@ export async function renderAchievementsImage(data:HollowfangImageData):Promise<
  const p=data.progress,height=1140,opened=p.achievements.filter(a=>a.unlocked).length;
  let svg=await frame(height,data,'THE RELIQUARY  /  MEMBER ACHIEVEMENTS');
  svg+=panel(77,397,1046,92)+
+ '<path d="M85 487Q600 496 1115 487" fill="none" stroke="#c8a4e7" stroke-opacity=".46"/>'+
+ gem(600,487,7)+
  text(110,437,'HOLLOWFANG ACHIEVEMENTS',25,'#f6e7ff',700)+
  text(1090,437,opened+' / '+p.achievements.length+' UNLOCKED',20,'#cba2f2',700,'end')+
  '<rect x="107" y="458" width="986" height="11" rx="5" fill="#281831"/>'+
