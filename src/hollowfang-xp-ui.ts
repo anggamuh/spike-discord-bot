@@ -19,19 +19,21 @@ const meter=(current:number,total:number,width=18)=>{
 };
 const caption=(title:string,subtitle:string)=>`-# ✦ H O L L O W F A N G   /   ${title}\n-# ${subtitle}`;
 
-function identity(name:string,avatar?:string){
- const title=`# ${safe(name,36)}\n-# MEMBER OF THE HOLLOW  ·  EXCLUSIVE COMMUNITY`;
- const section=new SectionBuilder().addTextDisplayComponents(txt(title));
- if(avatar&&/^https:\/\/(?:cdn|media)\.discordapp\.com\//i.test(avatar)){
-  section.setThumbnailAccessory(new ThumbnailBuilder().setURL(avatar).setDescription('Avatar member Hollowfang'));
- }
- return section;
-}
 function shell(title:string,subtitle:string,name:string,avatar?:string){
  const card=new ContainerBuilder().setAccentColor(violet)
   .addTextDisplayComponents(txt(caption(title,subtitle)));
  card.addSeparatorComponents(rule());
- card.addSectionComponents(identity(name,avatar));
+ const identity=`# ${safe(name,36)}\n-# MEMBER OF THE HOLLOW  ·  EXCLUSIVE COMMUNITY`;
+ if(avatar&&/^https:\/\/(?:cdn|media)\.discordapp\.com\//i.test(avatar)){
+  card.addSectionComponents(
+   new SectionBuilder()
+    .addTextDisplayComponents(txt(identity))
+    .setThumbnailAccessory(new ThumbnailBuilder().setURL(avatar).setDescription('Avatar member Hollowfang'))
+  );
+ }else{
+  // SectionBuilder requires an accessory; use text display when avatar is unavailable.
+  card.addTextDisplayComponents(txt(identity));
+ }
  card.addSeparatorComponents(rule());
  return card;
 }
