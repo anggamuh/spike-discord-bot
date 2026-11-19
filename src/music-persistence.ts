@@ -1,4 +1,5 @@
 import {monthParts,monthKey} from './music-meter.js';
+import {buildProgress,type ProgressSnapshot} from './hollowfang-xp.js';
 import {defaultPreferences,type MusicPreferences} from './music-options.js';
 import {DatabaseSync} from 'node:sqlite';
 import {mkdirSync} from 'node:fs';
@@ -12,7 +13,7 @@ export type Favorite={id:number;track:SavedTrack};
 /** SQLite-backed music state. Writes are debounced per guild; close() flushes pending snapshots. */
 export class MusicPersistence {
  private db:DatabaseSync; private pending=new Map<string,NodeJS.Timeout>(); private latest=new Map<string,SavedSession>();
- constructor(path:string){mkdirSync(dirname(path),{recursive:true});this.db=new DatabaseSync(path);this.db.exec(`PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS music_profile_settings(user_id TEXT PRIMARY KEY,payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS music_audience(guild_id TEXT NOT NULL,track_key TEXT NOT NULL,title TEXT NOT NULL,author TEXT NOT NULL,audience TEXT NOT NULL,ms INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(guild_id,track_key,audience)); CREATE TABLE IF NOT EXISTS music_totals(guild_id TEXT NOT NULL,month TEXT NOT NULL,track_key TEXT NOT NULL,title TEXT NOT NULL,author TEXT NOT NULL,requester TEXT NOT NULL,plays INTEGER NOT NULL DEFAULT 0,ms INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(guild_id,month,track_key,requester)); CREATE TABLE IF NOT EXISTS music_sessions(guild_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS music_history(guild_id TEXT NOT NULL, payload TEXT NOT NULL, played_at INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS music_history_guild ON music_history(guild_id,played_at DESC); CREATE TABLE IF NOT EXISTS music_favorites(user_id TEXT NOT NULL, track_key TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(user_id,track_key)); CREATE TABLE IF NOT EXISTS music_playlists(guild_id TEXT NOT NULL, name TEXT NOT NULL, tracks TEXT NOT NULL, PRIMARY KEY(guild_id,name)); CREATE TABLE IF NOT EXISTS music_panels(guild_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, message_id TEXT NOT NULL); CREATE TABLE IF NOT EXISTS music_preferences(guild_id TEXT PRIMARY KEY,payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS music_settings(guild_id TEXT PRIMARY KEY, payload TEXT NOT NULL);`);}
+ constructor(path:string){mkdirSync(dirname(path),{recursive:true});this.db=new DatabaseSync(path);this.db.exec(`PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS music_profile_settings(user_id TEXT PRIMARY KEY,payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS music_audience(guild_id TEXT NOT NULL,track_key TEXT NOT NULL,title TEXT NOT NULL,author TEXT NOT NULL,audience TEXT NOT NULL,ms INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(guild_id,track_key,audience)); CREATE TABLE IF NOT EXISTS music_totals(guild_id TEXT NOT NULL,month TEXT NOT NULL,track_key TEXT NOT NULL,title TEXT NOT NULL,author TEXT NOT NULL,requester TEXT NOT NULL,plays INTEGER NOT NULL DEFAULT 0,ms INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(guild_id,month,track_key,requester)); CREATE TABLE IF NOT EXISTS music_sessions(guild_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS music_history(guild_id TEXT NOT NULL, payload TEXT NOT NULL, played_at INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS music_history_guild ON music_history(guild_id,played_at DESC); CREATE TABLE IF NOT EXISTS music_favorites(user_id TEXT NOT NULL, track_key TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(user_id,track_key)); CREATE TABLE IF NOT EXISTS music_playlists(guild_id TEXT NOT NULL, name TEXT NOT NULL, tracks TEXT NOT NULL, PRIMARY KEY(guild_id,name)); CREATE TABLE IF NOT EXISTS music_panels(guild_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, message_id TEXT NOT NULL); CREATE TABLE IF NOT EXISTS music_preferences(guild_id TEXT PRIMARY KEY,payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS music_settings(guild_id TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS hf_chat_xp(guild_id TEXT NOT NULL,user_id TEXT NOT NULL,xp INTEGER NOT NULL DEFAULT 0,messages INTEGER NOT NULL DEFAULT 0,last_award_at INTEGER NOT NULL DEFAULT 0,day TEXT NOT NULL DEFAULT '',daily_count INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(guild_id,user_id));`);}
  save(guild:string,state:SavedSession){this.latest.set(guild,structuredClone(state));const old=this.pending.get(guild);if(old)clearTimeout(old);const timer=setTimeout(()=>{this.pending.delete(guild);this.flush(guild);},700).unref();this.pending.set(guild,timer);}
  private flush(guild:string){const state=this.latest.get(guild);if(!state)return;this.db.prepare('INSERT INTO music_sessions VALUES(?,?,?) ON CONFLICT(guild_id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at').run(guild,JSON.stringify(state),Date.now());}
  load(guild:string):SavedSession|undefined{const pending=this.latest.get(guild);if(pending)return structuredClone(pending);const row=this.db.prepare('SELECT payload FROM music_sessions WHERE guild_id=?').get(guild) as {payload:string}|undefined;return row?JSON.parse(row.payload):undefined;}
@@ -50,12 +51,47 @@ export class MusicPersistence {
   const key=(track.title+'|'+track.author).normalize('NFKC').toLowerCase();
   this.db.prepare('INSERT INTO music_audience VALUES(?,?,?,?,?,?) ON CONFLICT(guild_id,track_key,audience) DO UPDATE SET ms=ms+excluded.ms').run(guild,key,track.title,track.author,audience,Math.floor(ms));
  }
- listeningProfile(user:string){
+ /** Message reward needs no MessageContent intent. A cooldown and daily cap block farming. */
+ awardChatXP(guild:string,user:string,at=Date.now()):boolean {
+  if(!/^\d{15,22}$/.test(guild)||!/^\d{15,22}$/.test(user)||!Number.isFinite(at)||at<0)return false;
+  const row=this.db.prepare('SELECT last_award_at AS last,day,daily_count AS daily FROM hf_chat_xp WHERE guild_id=? AND user_id=?').get(guild,user) as {last:number;day:string;daily:number}|undefined;
+  if(row&&(at-row.last<60_000||at<=row.last))return false;
+  const day=new Date(at+7*3600_000).toISOString().slice(0,10);
+  const daily=row?.day===day?row.daily:0;
+  if(daily>=20)return false; // maximum 200 chat XP per user per WIB day
+  this.db.prepare(`INSERT INTO hf_chat_xp(guild_id,user_id,xp,messages,last_award_at,day,daily_count) VALUES(?,?,10,1,?,?,1)
+   ON CONFLICT(guild_id,user_id) DO UPDATE SET xp=xp+10,messages=messages+1,last_award_at=excluded.last_award_at,day=excluded.day,daily_count=?`).run(guild,user,at,day,daily+1);
+  return true;
+ }
+ progress(guild:string,user:string):ProgressSnapshot {
   const scope='EXISTS (SELECT 1 FROM json_each(a.audience) WHERE value=?)';
-  const total=this.db.prepare(`SELECT COALESCE(SUM(ms),0) AS ms,COUNT(DISTINCT guild_id) AS servers,COUNT(DISTINCT track_key) AS tracks FROM music_audience a WHERE ${scope}`).get(user) as {ms:number;servers:number;tracks:number};
-  const servers=this.db.prepare(`SELECT guild_id AS id,SUM(ms) AS ms FROM music_audience a WHERE ${scope} GROUP BY guild_id ORDER BY ms DESC,guild_id LIMIT 3`).all(user) as {id:string;ms:number}[];
-  const tracks=this.db.prepare(`SELECT title,author,SUM(ms) AS ms FROM music_audience a WHERE ${scope} GROUP BY track_key ORDER BY ms DESC,title LIMIT 3`).all(user) as {title:string;author:string;ms:number}[];
-  const friends=this.db.prepare(`SELECT j.value AS id,SUM(a.ms) AS ms FROM music_audience a,json_each(a.audience) j WHERE ${scope} AND j.value<>? GROUP BY j.value ORDER BY ms DESC,j.value LIMIT 3`).all(user,user) as {id:string;ms:number}[];
+  const total=this.db.prepare(`SELECT COALESCE(SUM(ms),0) AS ms,COUNT(DISTINCT track_key) AS tracks FROM music_audience a WHERE guild_id=? AND ${scope}`).get(guild,user) as {ms:number;tracks:number};
+  const friends=this.db.prepare(`SELECT COUNT(DISTINCT j.value) AS n FROM music_audience a,json_each(a.audience) j WHERE a.guild_id=? AND ${scope} AND j.value<>?`).get(guild,user,user) as {n:number};
+  const chat=this.db.prepare('SELECT xp,messages FROM hf_chat_xp WHERE guild_id=? AND user_id=?').get(guild,user) as {xp:number;messages:number}|undefined;
+  return buildProgress({listeningMs:total.ms,tracks:total.tracks,friends:friends.n,chatXp:chat?.xp??0,chatMessages:chat?.messages??0});
+ }
+ xpLeaderboard(guild:string):Array<{user:string;xp:number}> {
+  // Derive listener XP from the same per-user audience data used by /profile.
+  // Include users who only chatted; do not multiply shared listening time.
+  return this.db.prepare(`WITH voice AS (
+    SELECT j.value AS user,CAST(SUM(a.ms)/60000 AS INTEGER) AS xp
+    FROM music_audience a,json_each(a.audience) j WHERE a.guild_id=? GROUP BY j.value
+   ), all_users AS (
+    SELECT user FROM voice UNION SELECT user_id AS user FROM hf_chat_xp WHERE guild_id=?
+   )
+   SELECT u.user AS user,COALESCE(v.xp,0)+COALESCE(c.xp,0) AS xp
+   FROM all_users u LEFT JOIN voice v ON v.user=u.user
+   LEFT JOIN hf_chat_xp c ON c.guild_id=? AND c.user_id=u.user
+   ORDER BY xp DESC,u.user LIMIT 10`).all(guild,guild,guild) as Array<{user:string;xp:number}>;
+ }
+ listeningProfile(user:string,guild?:string){
+  const scope='EXISTS (SELECT 1 FROM json_each(a.audience) WHERE value=?)';
+  const filter=guild?' AND a.guild_id=?':'';
+  const params=guild?[user,guild]:[user];
+  const total=this.db.prepare(`SELECT COALESCE(SUM(ms),0) AS ms,COUNT(DISTINCT guild_id) AS servers,COUNT(DISTINCT track_key) AS tracks FROM music_audience a WHERE ${scope}${filter}`).get(...params) as {ms:number;servers:number;tracks:number};
+  const servers=this.db.prepare(`SELECT guild_id AS id,SUM(ms) AS ms FROM music_audience a WHERE ${scope}${filter} GROUP BY guild_id ORDER BY ms DESC,guild_id LIMIT 3`).all(...params) as {id:string;ms:number}[];
+  const tracks=this.db.prepare(`SELECT title,author,SUM(ms) AS ms FROM music_audience a WHERE ${scope}${filter} GROUP BY track_key ORDER BY ms DESC,title LIMIT 3`).all(...params) as {title:string;author:string;ms:number}[];
+  const friends=this.db.prepare(`SELECT j.value AS id,SUM(a.ms) AS ms FROM music_audience a,json_each(a.audience) j WHERE ${scope}${filter} AND j.value<>? GROUP BY j.value ORDER BY ms DESC,j.value LIMIT 3`).all(...params,user) as {id:string;ms:number}[];
   return {total,servers,tracks,friends};
  }
  recordPlayback(guild:string,track:SavedTrack,ms:number,plays:number,at=Date.now()){

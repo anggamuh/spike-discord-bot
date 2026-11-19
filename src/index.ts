@@ -44,8 +44,10 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildVoiceStates,
+        // GuildMessages does not require MessageContent; only metadata is used for rate-limited XP.
+        GatewayIntentBits.GuildMessages,
         ...(process.env.HF_ENABLE_MEMBER_EVENTS === 'true' ? [GatewayIntentBits.GuildMembers] : []),
-        ...((process.env.HF_ENABLE_AUTOMOD === 'true' || process.env.HF_SCAM_GUARD_MODE === 'log' || process.env.HF_SCAM_GUARD_MODE === 'delete') ? [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] : []),
+        ...((process.env.HF_ENABLE_AUTOMOD === 'true' || process.env.HF_SCAM_GUARD_MODE === 'log' || process.env.HF_SCAM_GUARD_MODE === 'delete') ? [GatewayIntentBits.MessageContent] : []),
     ],
     allowedMentions: {
         parse: [],

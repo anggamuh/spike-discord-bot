@@ -81,3 +81,16 @@ Mode 24/7, panel volume, serta Wrapped bulanan tersedia. Baca UPDATE_V3.md sebel
 
 ## Profil 3.1.0
 Gunakan /profile untuk kartu avatar, nama, top server, teman dengar bareng, dan lagu teratas. Baca UPDATE_PROFILE.md. Pengembangan dashboard ditunda; pemutar yang sudah ada tetap tersedia.
+
+## Hollowfang XP & Achievements
+
+- `/level [member]`: XP, level, rank, and progress menuju level selanjutnya.
+- `/achievements [member]`: badge terbuka/terkunci berdasarkan aktivitas asli.
+- `/xptop`: 10 member dengan total XP tertinggi di guild.
+- `/profile`: kartu gothic menampilkan level, rank, progress XP, dan badge pertama yang benar-benar terbuka (tanpa angka demo).
+
+**Aturan XP:** 1 XP per **menit penuh** mendengar musik (dihitung dari `music_audience` yang sudah ada, termasuk data historis), plus 10 XP untuk pesan Discord yang memenuhi cooldown **60 detik**; maksimum **20 pesan ber-XP / 200 XP per hari WIB**. Pesan bot, webhook, pesan sistem dan pesan dari server selain `DISCORD_GUILD_ID` tidak mendapat XP. Kode tidak membaca/mencatat isi chat dan tidak memerlukan `MessageContent` intent untuk XP. Pesan lama tidak dihitung mundur. Hanya durasi yang benar-benar terukur oleh sistem musik mendapat XP.
+
+**Setup:** isi `DISCORD_GUILD_ID` dengan ID server Hollowfang dan `MUSIC_ENABLED=true`. Sistem membuat tabel baru `hf_chat_xp` otomatis dalam database SQLite yang sama; tidak ada migrasi manual. Nyalakan ulang bot lalu jalankan `npm run register` agar perintah baru muncul. Tidak ada role otomatis maupun notifikasi XP yang spam. Sistem hanya memberikan progress dan achievement virtual (bukan Discord role). Untuk memeriksa: `npm run check && npm test && npm run build`.
+
+**Batasan:** XP musik mengikuti statistik yang sudah terukur; tidak bertambah sekadar AFK di voice atau saat musik berhenti. Chat XP diperoleh dari metadata `MessageCreate` saja dengan cooldown + batas harian. Achievement dibuka otomatis dari data yang ada, bukan disimpan manual. Karena progres diakumulasi dari statistik listener yang lama, member mungkin langsung memiliki level di atas 1 setelah deployment.
