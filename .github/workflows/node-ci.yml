@@ -20,3 +20,11 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run build
+      - name: Render Hollowfang PNG previews
+        run: node --import tsx scripts/preview-hollowfang-xp.ts
+      - name: Upload rendered preview cards
+        uses: actions/upload-artifact@v4
+        with:
+          name: hollowfang-gothic-previews
+          path: artifacts/hollowfang-preview/*.png
+          if-no-files-found: error
