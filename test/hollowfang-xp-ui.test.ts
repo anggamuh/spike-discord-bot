@@ -12,8 +12,8 @@ test('level card shows truthful XP, rank, music and chat breakdown with a progre
  assert.match(card,/H O L L O W F A N G/);
  assert.match(card,/LEVEL 5/);
  assert.match(card,/DUSK WALKER/);
- assert.match(card,/1\\.800 XP/);
- assert.match(card,/1\\.200 XP/);
+ assert.ok(card.includes('1.800 XP'));
+ assert.ok(card.includes('1.200 XP'));
  assert.match(card,/600 XP/);
  assert.match(card,/▰/);
  assert.match(card,/EARNED HONORS/);
@@ -36,7 +36,7 @@ test('achievement card groups unlocked and locked rewards without claiming missi
 test('leaderboard handles empty and normal rows, and escapes untrusted Discord names',()=>{
  assert.match(serialized(xpTopCard([])),/No XP recorded yet/);
  const card=serialized(xpTopCard([{name:'*evil* @everyone',xp:1246},{name:'fer',xp:80}]));
- assert.match(card,/1\\.246 XP/);
+ assert.ok(card.includes('1.246 XP'));
  assert.ok(card.includes('evil'));
  assert.match(card,/THE HOLLOW ELITE/);
 });
