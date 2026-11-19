@@ -3,6 +3,7 @@ import {shortText} from './music-profile.js';
 import type {ProgressSnapshot,Achievement} from './hollowfang-xp.js';
 
 export type HollowfangImageData = {name:string;avatar?:Buffer;progress:ProgressSnapshot};
+const cinematicBackdrop='/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABsSFBcUERsXFhceHBsgKEIrKCUlKFE6PTBCYFVlZF9VXVtqeJmBanGQc1tdhbWGkJ6jq62rZ4C8ybqmx5moq6T/2wBDARweHigjKE4rK06kbl1upKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKT/wAARCAB4AKADASIAAhEBAxEB/8QAGQABAAMBAQAAAAAAAAAAAAAAAAECAwQF/8QAKhAAAgICAgICAgEDBQAAAAAAAAECEQMhEjEEQRNRImEyBVKBFCNCccH/xAAWAQEBAQAAAAAAAAAAAAAAAAAAAQL/xAAZEQEBAQEBAQAAAAAAAAAAAAAAARFBITH/2gAMAwEAAhEDEQA/APDU3STdpm68aGVJwbVLs5qT7kr+jXHlzKUYwdNdFFIyk5cJNtJm3wNx5J9vSM5Y8im5TpN97PRxTwPFj5TS49mpnVebnT1fa0zBrZ3+VHDJ84TVtnLLE1vVEorjjCUqbaZEoPm4pEuNbtEfl2ZQ+OX0TjhTfKNohOT+yam9f+gTkhb/ABjSSK/HL6JcZJ09/wCSG5fsBGD5qLLZIxjKk3ZX8uyVFt70BWPZ0YYunX8npGfCpdo6fH+NZk5zVGoKT8dqDkn12ZKD5qPVnqzyeP8AHkSmnfR58YT+RSi02utlsir5PFhhu23rs53Jyjx9I1zZcrnKM2m2Y6X/ACV/RKjNJvo1xOrcu0tERxtwtfZPHiqa3RFI/nc8nozlkb60jaSh/p75fl9HMETGVFlNrXp+iqDYB9hkMACSABNiyABNiyABN0WjKmUJugNnm1Sii0mlJOPdHO2dEMV4+d7RQyvlFNfyrZg4vtm7jaSS3RR43GDbIrTDJxin6sZJNy5e6LYY80kik6c3XpF4M1+Vp6syknF0y7sq232REdD2PQAAABQAAAAAAAA9AADaGSo0jE0iB0YpXKLfseQ24uyITSnFvpGnlRSin/crRZ8Vl47ana+iOLTbOnwvHc8ii1oz8iDjJ/V0BzdlJqmXlKK0jOTtkRBOiABOhaIAFrQ0VAAAAAAAAAA0jrdmZaLTewNn+UV9ls0ucYL+1UXwYXkaits6c3jRhhTf8r2WKn5Pjdo5fI5NNu9l4z5Sb9DyJReFL39ijjeN8eRnRq5fjT9GcmvRBAACAJIAIBEsCACQICAAAlkASlZLXshF3sDv/pk4xyJ1dei/kzcsj/7MvAx8/dfs1mkrXbWjUniuPHcpqtL2dOTFGePjGacvownljw4pKLM45Wn+yzBTJFwfFoyZ2eVKE+LXdbOWfejNmFUBIIgAAADIAkAAAAAAAAtFW0r7Kl4JvSVgdnKWDGoRabe7RXFmlKdPv7MeE+rpotj/ANuN9tmtXWdxkv2Q1KLUh0iVK4qLXXsyLTlLKrceNGMk12dMZTcXC1Ri4SlKlstGYLOEl2iKZEQC8cbkr0VaaYEAmmHFrsCAC0ccpdICoDTTJp0BAJpkqEn0rAqaQ5RacHsrwlfRpjUluP8AkCze7m9+6InNvrSGR8q3YSpbCs6sLXYARbk10W+QAC6lGXZOTjJUlQBVTDGlF29synjoACnReeRThGNbXsAiM9JnR4+dYr0gBKMZ/nJtGmPG1/JaAKq3xwk9aNceSGJNKKb+wAM5ZeTukqMpzlJ+kv0ANFbSKuTYBEf/2Q==';
 const esc=(s:string)=>s.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]!));
 const text=(x:number,y:number,v:string,size=23,color='#f5eafb',weight=600,anchor='start',font='DejaVu Sans, Arial, sans-serif')=>'<text x="'+x+'" y="'+y+'" font-size="'+size+'" font-family="'+font+'" font-weight="'+weight+'" fill="'+color+'" text-anchor="'+anchor+'">'+esc(v)+'</text>';
 const pretty=(n:number)=>Math.max(0,Math.floor(n)).toLocaleString('id-ID');
@@ -10,7 +11,9 @@ const gem=(x:number,y:number,r=9)=>'<path d="M'+x+' '+(y-r)+'l'+(r*.7)+' '+r+'l-
 const rail=(x:number,y:number,w:number)=>'<path d="M'+x+' '+y+' Q'+(x+w/2)+' '+(y-12)+' '+(x+w)+' '+y+'" stroke="url(#silver)" fill="none" stroke-width="2"/>'+Array.from({length:15},(_,i)=>{const px=x+i*w/14;return '<path d="M'+px+' '+y+'l'+(i%2?12:-12)+' '+(i%2?-18:18)+'l'+(i%2?-6:6)+' '+(i%2?6:-6)+'" stroke="#b79dcd" fill="none" opacity=".7"/>';}).join('');
 const windowPane=(x:number)=>'<g opacity=".67"><path d="M'+x+' 432V90Q'+(x+75)+' -35 '+(x+150)+' 90V432Z" fill="#160e27" stroke="#d3b5e7" stroke-width="3"/><path d="M'+(x+12)+' 422V104Q'+(x+75)+' 0 '+(x+138)+' 104V422Z" fill="url(#glass)" stroke="#bf86fa"/><path d="M'+(x+75)+' 45V425M'+(x+12)+' 165H'+(x+138)+'M'+(x+12)+' 253H'+(x+138)+'M'+(x+12)+' 165L'+(x+138)+' 253M'+(x+138)+' 165L'+(x+12)+' 253" fill="none" stroke="#dfc8ed" opacity=".65" stroke-width="2"/></g>';
 const rose=(x:number,y:number)=>'<g transform="translate('+x+' '+y+')" fill="none" stroke="#caa6ed" stroke-width="2"><path d="M0 -30Q26 -42 32 -13Q48 4 24 18Q5 42 -16 27Q-43 24 -34 -3Q-28 -33 0 -30Z" fill="#26102e"/><path d="M-20 -8Q7 -24 20 -3Q27 16 4 21Q-18 20 -17 2Q-10 -14 10 -7Q18 5 2 8M-32 22L-51 43M30 22L52 43" stroke="#e6c8f6"/></g>';
-const panel=(x:number,y:number,w:number,h:number)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="13" fill="#090914" fill-opacity=".93" stroke="url(#silver)" stroke-opacity=".68" stroke-width="2"/>';
+const panel=(x:number,y:number,w:number,h:number)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="13" fill="#090914" fill-opacity=".91" stroke="url(#silver)" stroke-opacity=".88" stroke-width="2.3"/>'+
+ '<path d="M'+(x+12)+' '+(y+32)+'V'+(y+12)+'H'+(x+32)+'M'+(x+w-32)+' '+(y+h-12)+'H'+(x+w-12)+'V'+(y+h-32)+'" fill="none" stroke="#dbb8ff" stroke-width="2" opacity=".8"/>'+
+ '<path d="M'+(x+18)+' '+(y+7)+'H'+(x+w-18)+'" stroke="#b977ef" stroke-opacity=".55"/>';
 /** SVG-native gothic detailing; no baked example member data or external assets. */
 const sigil=(id:string,x:number,y:number)=>{
  const paths:Record<string,string>={
@@ -44,7 +47,10 @@ async function frame(height:number,data:HollowfangImageData,kicker:string){
  '<linearGradient id="violet" x2="1"><stop stop-color="#622992"/><stop offset=".5" stop-color="#d18aff"/><stop offset="1" stop-color="#8541c5"/></linearGradient>'+
  '<radialGradient id="haze"><stop stop-color="#9c62ff" stop-opacity=".27"/><stop offset="1" stop-color="#100d1c" stop-opacity="0"/></radialGradient>'+
  '<clipPath id="portrait"><circle cx="172" cy="265" r="75"/></clipPath></defs>'+
- '<rect width="1200" height="'+height+'" fill="url(#night)"/><ellipse cx="600" cy="90" rx="540" ry="290" fill="url(#haze)"/>'+
+ '<rect width="1200" height="'+height+'" fill="url(#night)"/>'+ 
+ '<image x="0" y="0" width="1200" height="'+height+'" preserveAspectRatio="xMidYMid slice" href="data:image/jpeg;base64,'+cinematicBackdrop+'" opacity=".93"/>'+
+ '<rect x="226" y="145" width="748" height="'+(height-195)+'" rx="21" fill="#070710" fill-opacity=".26"/>'+
+ '<ellipse cx="600" cy="90" rx="540" ry="290" fill="url(#haze)"/>'+
  windowPane(17)+windowPane(1033)+
  '<path d="M0 475V437H34V401H55V377H73V417H100V435H145V398H166V438H216V398H245V456H955V421H990V385H1014V430H1050V405H1080V433H1120V399H1150V437H1200V475Z" fill="#090913" opacity=".78"/>'+
  '<rect x="28" y="26" width="1144" height="'+(height-52)+'" rx="14" fill="none" stroke="url(#silver)" stroke-width="3"/>'+
